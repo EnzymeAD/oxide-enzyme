@@ -10,3 +10,9 @@ edition = "2018"
 
 [build-dependencies]
 bindgen = "0.56"
+pkg-config = "0.3.19"
+
+[features]
+system = []
+static = []
+default = ["static"]

@@ -1,25 +1,24 @@
 extern crate bindgen;
+extern crate pkg_config;
 
 use std::env;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
-const ENZYME_PATH: &'static str = "source/enzyme/Enzyme/CApi.h";
+fn generate_bindings() {
+    let header_path = format!("{}CApi.h", ENZYME_PATH);
+    // tell cargo to re-run the builder if the header has changed
+    println!("cargo:rerun-if-changed={}", header_path);
 
-fn main() {
-    // Tell cargo to tell rustc to link the system bzip2
-    // shared library.
-    println!("cargo:rustc-link-lib=enzyme");
-
-    // Tell cargo to invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed={}", ENZYME_PATH);
-
-    // The bindgen::Builder is the main entry point
-    // to bindgen, and lets you build up options for
-    // the resulting bindings.
     let bindings = bindgen::Builder::default()
-        // The input header we would like to generate
-        // bindings for.
-        .header(ENZYME_PATH)
+        .header(&header_path)
+        // add CConcreteType as enum
+        .whitelist_type("CConcreteType")
+        .rustified_enum("CConcreteType")
+        .whitelist_type("LLVMContextRef")
+        .whitelist_function("EnzymeNewTypeTree")
+        .whitelist_function("EnzymeNewTypeTreeCT")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
@@ -33,4 +32,53 @@ fn main() {
     bindings
         .write_to_file(out_path.join("enzyme.rs"))
         .expect("Couldn't write bindings for enzyme!");
+}
+
+fn choose_library() {
+    let enzyme_lib_path = Path::new("source")
+        .join("enzyme")
+        .join("build")
+        .join("Enzyme");
+
+        if !enzyme_lib_path.join("libllvmenzyme.so").exists() {
+            // create make folder
+            let conf_path = Path::new(ENZYME_PATH)
+                .join("enzyme")
+                .join("build");
+            
+            fs::create_dir_all(&conf_path).unwrap();
+            
+            let build_path = Path::new(ENZYME_PATH)
+                .parent().unwrap().join("build");
+            
+            let cmake = Command::new("cmake")
+                .args(&["-G", "Ninja", "..", "-DLLVM_DIR="])
+                .arg("../../llvm/cmake/")
+                .current_dir(&build_path)
+                .output()
+                .unwrap();
+            
+            dbg!(&cmake);
+            
+            let ninja = Command::new("ninja")
+                .current_dir(&build_path)
+                .output()
+                .unwrap();
+            
+            dbg!(&ninja);
+        }
+
+        println!(
+            "cargo:rustc-link-search={}",
+            enzyme_lib_path.display()
+        );
+
+        println!("cargo:rustc-link-lib={}=enzyme", link_kind);
+    }
+
+}
+
+fn main() {
+    generate_bindings();
+    choose_library();
 }
