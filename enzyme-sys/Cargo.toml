@@ -12,6 +12,9 @@ edition = "2018"
 bindgen = "0.56"
 pkg-config = "0.3.19"
 
+[dev-dependencies]
+llvm-sys = { version = "110", features = ["no-llvm-linking"] }
+
 [features]
 system = []
 static = []

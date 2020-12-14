@@ -7,6 +7,8 @@ include!(concat!(env!("OUT_DIR"), "/enzyme.rs"));
 #[cfg(test)]
 mod tests {
     use super::*;
+    use llvm_sys::core::{LLVMContextCreate, LLVMModuleCreateWithName};
+    use std::ffi::CString;
 
     #[test]
     fn empty_tree() {
@@ -17,10 +19,37 @@ mod tests {
 
     #[test]
     fn build_tree() {
-        //let tree = unsafe { EnzymeNewTypeTreeCT(
+        // create LLVM context
+        let context = unsafe {
+            LLVMContextCreate()
+        } as *mut LLVMOpaqueContext;
 
-        let t = CConcreteType::DT_Float;
+        // create two singleton tree within context
+        let n1 = unsafe { EnzymeNewTypeTreeCT(CConcreteType::DT_Float, context) };
+        let n2 = unsafe { EnzymeNewTypeTreeCT(CConcreteType::DT_Float, context) };
 
+        assert_ne!(n1, n2);
+
+        // combine them
+        unsafe { EnzymeMergeTypeTree(n1, n2) };
+
+        // get first item
+        unsafe { EnzymeTypeTreeOnlyEq(n2, 4) };
+
+        dbg!(&n1, &n2);
+
+    }
+
+    #[test]
+    fn get_global_aa() {
+        let dummy_module = unsafe {
+            LLVMModuleCreateWithName(CString::new("dummy").unwrap().into_raw())
+        } as *mut LLVMOpaqueModule;
+
+        unsafe {
+            let tmp = EnzymeGetGlobalAA(dummy_module);
+            EnzymeFreeGlobalAA(tmp);
+        }
     }
 }
 
