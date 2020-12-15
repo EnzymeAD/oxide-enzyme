@@ -4,6 +4,8 @@
 
 include!(concat!(env!("OUT_DIR"), "/enzyme.rs"));
 
+pub mod tree;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -19,24 +21,6 @@ mod tests {
 
     #[test]
     fn build_tree() {
-        // create LLVM context
-        let context = unsafe {
-            LLVMContextCreate()
-        } as *mut LLVMOpaqueContext;
-
-        // create two singleton tree within context
-        let n1 = unsafe { EnzymeNewTypeTreeCT(CConcreteType::DT_Float, context) };
-        let n2 = unsafe { EnzymeNewTypeTreeCT(CConcreteType::DT_Float, context) };
-
-        assert_ne!(n1, n2);
-
-        // combine them
-        unsafe { EnzymeMergeTypeTree(n1, n2) };
-
-        // get first item
-        unsafe { EnzymeTypeTreeOnlyEq(n2, 4) };
-
-        dbg!(&n1, &n2);
 
     }
 
