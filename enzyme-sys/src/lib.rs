@@ -5,6 +5,32 @@
 include!(concat!(env!("OUT_DIR"), "/enzyme.rs"));
 
 pub mod tree;
+pub mod typeinfo;
+
+use llvm_sys::prelude::LLVMValueRef;
+
+pub struct AutoDiff {
+    aa_results_ref: EnzymeAAResultsRef,
+    type_analysis: EnzymeTypeAnalysisRef
+}
+
+impl AutoDiff {
+    pub fn new(module: LLVMModuleRef, type_analysis: EnzymeTypeAnalysisRef) -> AutoDiff {
+        let aa_results_ref = unsafe { EnzymeGetGlobalAA(module) };
+
+        AutoDiff { aa_results_ref, type_analysis }
+    }
+
+    pub fn create_primal_and_gradient(&self, fnc: LLVMValueRef, retType: CDIFFE_TYPE, args: Vec<CDIFFE_TYPE>, type_info: typeinfo::TypeInfo) {
+
+    }
+}
+
+impl Drop for AutoDiff {
+    fn drop(&mut self) {
+        unsafe { EnzymeFreeGlobalAA(self.aa_results_ref) }
+    }
+}
 
 #[cfg(test)]
 mod tests {
