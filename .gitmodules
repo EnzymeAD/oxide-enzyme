@@ -1,4 +1,4 @@
 [submodule "enzyme-sys/source"]
 	path = enzyme-sys/source
-	url = https://github.com/wsmoses/Enzyme.git
-	branch = cppapi
+  url = https://github.com/wsmoses/Enzyme.git
+  branch = v0.0.9

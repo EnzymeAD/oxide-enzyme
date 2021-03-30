@@ -5,7 +5,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const LIBRARY_NAME: &'static str = "libenzyme.so";
+//const LIBRARY_NAME: &'static str = "libenzyme.so"; // arch
+const LIBRARY_NAME: &'static str = "LLVMEnzyme-11.so"; // Ubuntu
 
 fn system_library(name: &str) -> Option<PathBuf> {
     // the Enzyme build script installs to /usr/local/lib
@@ -103,7 +104,8 @@ fn choose_library() {
         run_and_printerror(ninja);
     }
 
-    println!("cargo:rustc-link-lib=dylib=enzyme");
+    println!("cargo:rustc-link-lib=dylib=LLVMEnzyme-11");
+    //println!("cargo:rustc-link-lib=dylib=enzyme");
     println!("cargo:rustc-link-lib=LLVM-11");
 }
 
