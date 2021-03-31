@@ -11,8 +11,8 @@ const LIBRARY_NAME: &'static str = "LLVMEnzyme-11.so"; // Ubuntu
 fn system_library(name: &str) -> Option<PathBuf> {
     // the Enzyme build script installs to /usr/local/lib
     fs::read_dir("/usr/local/lib/").unwrap()
-        .chain(fs::read_dir("/usr/lib/").unwrap())
-        .chain(fs::read_dir("source/enzyme/build/Enzyme").unwrap())
+        //.chain(fs::read_dir("source/enzyme/build/Enzyme").unwrap())
+        //.chain(fs::read_dir("/usr/lib/").unwrap())
         .filter_map(|x| x.ok())
         .filter(|x| x.file_type().unwrap().is_file())
         .map(|x| x.path())
@@ -86,22 +86,23 @@ fn choose_library() {
             path.display()
         );
     } else {
-        panic!("");
+        //panic!("");
         // create build folder
         let build_path = Path::new("source/enzyme/build");
         fs::create_dir_all(&build_path).unwrap();
             
-        let cmake = Command::new("cmake")
-            .args(&["-G", "Ninja", "..", "-DLLVM_DIR="])
-            .arg("../../llvm/cmake/")
+        let mut cmake = Command::new("cmake");
+        cmake
+            .args(&["-G", "Ninja", "..", "-DLLVM_LIT=/home/zuse/Downloads/llvm-project-11.0.0/llvm/utils/lit/lit.py"])
             .current_dir(&build_path);
 
-        run_and_printerror(cmake);
+        run_and_printerror(&mut cmake);
             
-        let ninja = Command::new("ninja")
+        let mut ninja = Command::new("ninja");
+        ninja
             .current_dir(&build_path);
 
-        run_and_printerror(ninja);
+        run_and_printerror(&mut ninja);
     }
 
     println!("cargo:rustc-link-lib=dylib=LLVMEnzyme-11");
