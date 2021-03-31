@@ -31,7 +31,7 @@ impl TypeTree {
 
     pub fn merge_with(self, other: Self) -> Self {
         unsafe {
-            EnzymeMergeTypeTree(self.inner, other.inner)
+            EnzymeMergeTypeTree(self.inner, other.inner);
         }
 
         drop(other);

@@ -62,7 +62,7 @@ fn generate_bindings() {
         .whitelist_function("EnzymeTypeTreeToStringFree")
         .whitelist_function("EnzymeGetGlobalAA")
         .whitelist_function("EnzymeFreeGlobalAA")
-        //.whitelist_type("LLVMOpaqueModule")
+        .whitelist_type("LLVMOpaqueModule")
         //.whitelist_function("LLVMModuleCreateWithName")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.

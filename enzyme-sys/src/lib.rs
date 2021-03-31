@@ -8,7 +8,9 @@ pub mod tree;
 pub mod typeinfo;
 
 use llvm_sys::prelude::LLVMValueRef;
+use llvm_sys::prelude::LLVMModuleRef; // added by myself
 
+/*
 pub struct AutoDiff {
     aa_results_ref: EnzymeAAResultsRef,
     type_analysis: EnzymeTypeAnalysisRef
@@ -30,7 +32,7 @@ impl Drop for AutoDiff {
     fn drop(&mut self) {
         unsafe { EnzymeFreeGlobalAA(self.aa_results_ref) }
     }
-}
+}*/
 
 #[cfg(test)]
 mod tests {
@@ -55,11 +57,6 @@ mod tests {
         let dummy_module = unsafe {
             LLVMModuleCreateWithName(CString::new("dummy").unwrap().into_raw())
         } as *mut LLVMOpaqueModule;
-
-        unsafe {
-            let tmp = EnzymeGetGlobalAA(dummy_module);
-            EnzymeFreeGlobalAA(tmp);
-        }
     }
 }
 
