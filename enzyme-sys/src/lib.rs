@@ -33,14 +33,17 @@ impl AutoDiff {
         AutoDiff { logic_ref, type_analysis }
     }
 
-    pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, args: Vec<CDIFFE_TYPE>, type_info: typeinfo::TypeInfo) {
-        let tree_tmp = tree::TypeTree::from_type(CConcreteType::DT_Float, context);
+    pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, args: Vec<CDIFFE_TYPE>, type_info: typeinfo::TypeInfo) -> LLVMValueRef {
+        let tree_tmp = tree::TypeTree::from_type(CConcreteType::DT_Float, context)
+            .prepend(0);
+
         let mut args_tree = vec![tree_tmp.inner];
 
         let mut args_activity = vec![CDIFFE_TYPE::DFT_OUT_DIFF];
         let mut args_uncachable = vec![0];
 
-        let ret = tree::TypeTree::from_type(CConcreteType::DT_Float, context);
+        let ret = tree::TypeTree::from_type(CConcreteType::DT_Float, context)
+            .prepend(0);
 
         let kv_tmp = IntList {
             data: ptr::null_mut(),
@@ -67,6 +70,8 @@ impl AutoDiff {
                 0, 0 // atomic_add, post_opt
             )
         };
+
+        foo
     }
     /*
     pub fn create_primal_and_gradient(&self, fnc_todiff: LLVMValueRef, retType: CDIFFE_TYPE, args: Vec<CDIFFE_TYPE>, type_info: typeinfo::TypeInfo) {

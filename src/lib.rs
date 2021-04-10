@@ -44,15 +44,37 @@ pub unsafe fn load_llvm() {
     use enzyme_sys::{createEmptyTypeAnalysis, AutoDiff, typeinfo::TypeInfo};
     let type_analysis = createEmptyTypeAnalysis();
     let auto_diff = AutoDiff::new(type_analysis);
-    //pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, args: Vec<CDIFFE_TYPE>, type_info: typeinfo::TypeInfo) {
-    auto_diff.create_primal_and_gradient(context as *mut enzyme_sys::LLVMOpaqueContext, fnc as *mut enzyme_sys::LLVMOpaqueValue, enzyme_sys::CDIFFE_TYPE::DFT_OUT_DIFF, Vec::new(), TypeInfo);
 
-    panic!("");
+    let grad_func = auto_diff.create_primal_and_gradient(context as *mut enzyme_sys::LLVMOpaqueContext, fnc as *mut enzyme_sys::LLVMOpaqueValue, enzyme_sys::CDIFFE_TYPE::DFT_OUT_DIFF, Vec::new(), TypeInfo);
+
+    dbg!(&grad_func);
+
+    /*
+     * see: https://github.com/nagisa/llvm_build_utils.rs/blob/master/src/lib.rs#L463
+    let machine = LLVMCreateTargetMachine(
+        target,
+        triple.as_ptr(),
+        cpu.as_ptr(),
+        attr.as_ptr(),
+        opt,
+        reloc,
+        model
+    );
+
+    let status = LLVMTargetMachineEmitToFile(machine,
+        module,
+        out_dir.as_ptr(),
+        CodeGenFileType::Object,
+        &mut msg);
+    */
+
+    /*
+     * pack to archive with https://docs.rs/cc/1.0.67/cc/struct.Build.html#method.compile */
+
+    // emit link instruction \o/
 
 
-    // get metadata
-    let metadata = LLVMGetSubprogram(fnc);
-    assert!(metadata as usize != 0, "Could not load metadata!");
+
 
     LLVMDisposeModule(module);
     LLVMContextDispose(context);
