@@ -14,10 +14,12 @@ use llvm_sys::execution_engine::{LLVMGetFunctionAddress, LLVMLinkInMCJIT};
 use llvm_sys::target::LLVM_InitializeNativeTarget;
 
 pub fn pre_processing() {
-    process::Command::new("/usr/bin/rustc")
-        .args(&["--emit=obj", "--emit=llvm-bc",  "src/main.rs", "-C debuginfo=2"])
+    let out = process::Command::new("/usr/bin/rustc")
+        .args(&["--emit=obj", "--emit=llvm-bc",  "src/main.rs", "-C", "debuginfo=2"])
         .output()
         .expect("failed to run cargo");
+
+    dbg!(&out);
 }
 
 pub unsafe fn load_llvm() {

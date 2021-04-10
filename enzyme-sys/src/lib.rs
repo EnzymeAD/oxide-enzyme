@@ -87,7 +87,6 @@ mod tests {
             LLVMModuleCreateWithName(CString::new("dummy").unwrap().into_raw())
         } as *mut LLVMOpaqueModule;
     }
-
     #[test]
     fn basic_autodiff() {
       2;
