@@ -5,8 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-//const LIBRARY_NAME: &'static str = "libenzyme.so"; // arch
-const LIBRARY_NAME: &'static str = "LLVMEnzyme-11.so"; // Ubuntu
+const LIBRARY_NAME: &'static str = "libEnzyme-11.so"; // he find's it :)
 
 fn system_library(name: &str) -> Option<PathBuf> {
     // the Enzyme build script installs to /usr/local/lib
@@ -44,25 +43,35 @@ fn generate_bindings() {
     let bindings = bindgen::Builder::default()
         .header(header_path)
         // add CConcreteType as enum
-        .whitelist_type("CConcreteType")
+        .whitelist_type("CConcreteType") // keep
         .rustified_enum("CConcreteType")
-        .whitelist_type("CDIFFE_TYPE")
+        .whitelist_type("CDIFFE_TYPE") // keep
         .rustified_enum("CDIFFE_TYPE")
-        .whitelist_type("LLVMContextRef")
-        .whitelist_type("CTypeTreeRef")
-        .whitelist_type("EnzymeTypeAnalysisRef")
-        .whitelist_function("EnzymeNewTypeTree")
-        .whitelist_function("EnzymeNewTypeTreeCT")
-        .whitelist_function("EnzymeFreeTypeTree")
-        .whitelist_function("EnzymeMergeTypeTree")
-        .whitelist_function("EnzymeTypeTreeOnlyEq")
-        .whitelist_function("EnzymeMergeTypeTree")
-        .whitelist_function("EnzymeTypeTreeShiftIndiciesEq")
-        .whitelist_function("EnzymeTypeTreeToString")
-        .whitelist_function("EnzymeTypeTreeToStringFree")
-        .whitelist_function("EnzymeGetGlobalAA")
-        .whitelist_function("EnzymeFreeGlobalAA")
+        .whitelist_type("LLVMContextRef") // keep
+        .whitelist_type("CTypeTreeRef") // keep 
+        .whitelist_type("EnzymeTypeAnalysisRef") // keep 
+
+        .whitelist_function("EnzymeNewTypeTree") // keep 
+        .whitelist_function("EnzymeNewTypeTreeCT") // keep 
+        .whitelist_function("EnzymeFreeTypeTree") // keep 
+        .whitelist_function("EnzymeMergeTypeTree") // keep 
+        .whitelist_function("EnzymeTypeTreeOnlyEq") // keep 
+        .whitelist_function("EnzymeMergeTypeTree") // keep 
+        .whitelist_function("EnzymeTypeTreeShiftIndiciesEq") // keep 
+        .whitelist_function("EnzymeTypeTreeToString") // keep 
+        .whitelist_function("EnzymeTypeTreeToStringFree") // keep 
+
+        .whitelist_function("CreateTypeAnalysis")
+        .whitelist_function("ClearTypeAnalysis")
+        .whitelist_function("FreeTypeAnalysis")
+
+        .whitelist_function("CreateEnzymeLogic")
+        .whitelist_function("ClearEnzymeLogic")
+        .whitelist_function("FreeEnzymeLogic")
+
         .whitelist_type("LLVMOpaqueModule")
+        .whitelist_function("EnzymeCreatePrimalAndGradient")
+        .whitelist_function("EnzymeCreateAugmentedPrimal")
         //.whitelist_function("LLVMModuleCreateWithName")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
@@ -80,20 +89,21 @@ fn generate_bindings() {
 }
 
 fn choose_library() {
+    let build_path = Path::new("source/enzyme/build");
+    fs::create_dir_all(&build_path).unwrap();
     if let Some(path) = system_library(LIBRARY_NAME) {
+        println!("foo: {}", path.display());
         println!(
             "cargo:rustc-link-search={}",
             path.display()
         );
     } else {
-        //panic!("");
+        panic!("");
         // create build folder
-        let build_path = Path::new("source/enzyme/build");
-        fs::create_dir_all(&build_path).unwrap();
             
         let mut cmake = Command::new("cmake");
         cmake
-            .args(&["-G", "Ninja", "..", "-DLLVM_LIT=/home/zuse/Downloads/llvm-project-11.0.0/llvm/utils/lit/lit.py"])
+            .args(&["-G", "Ninja", "..", "-DLLVM_DIR=/homes/zuse/prog/Mathe_ba/llvm-project/build/lib/libLLVM-11.so" ,"-DLLVM_LIT=/home/zuse/prog/Mathe_ba/llvm-project/llvm/utils/lit/lit.py", "-DENZYME_EXTERNAL_SHARED_LIB=ON"])
             .current_dir(&build_path);
 
         run_and_printerror(&mut cmake);
@@ -104,10 +114,8 @@ fn choose_library() {
 
         run_and_printerror(&mut ninja);
     }
-
-    println!("cargo:rustc-link-lib=dylib=LLVMEnzyme-11");
-    //println!("cargo:rustc-link-lib=dylib=enzyme");
-    println!("cargo:rustc-link-lib=LLVM-11");
+    println!("cargo:rustc-link-lib=dylib=Enzyme-11"); // it find's it and it's needed
+    println!("cargo:rustc-link-lib=dylib=LLVM-11"); // it find's it and it's needed
 }
 
 fn main() {

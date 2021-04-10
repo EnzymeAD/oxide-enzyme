@@ -8,6 +8,44 @@ pub struct TypeTree {
     pub inner: CTypeTreeRef
 }
 
+// Covered:
+// CTypeTreeRef
+// EnzymeNewTypeTree();
+// EnzymeNewTypeTreeCT
+// EnzymeMergeTypeTree
+// EnzymeFreeTypeTree
+// EnzymeTypeTreeOnlyEq
+// EnzymeTypeTreeShiftIndiciesEq
+// EnzymeTypeTreeToString
+// EnzymeTypeTreeToStringFree
+
+// NOT Covered, TODO:
+// EnzymeCreatePrimalAndGradient
+// EnzymeCreateAugmentedPrimal
+//
+// TA part:
+// CreateTypeAnalysis
+// ClearTypeAnalysis
+// FreeTypeAnalysis
+// 
+// Logic part:
+// CreateEnzymeLogic
+// ClearEnzymeLogic
+// FreeEnzymeLogic
+// 
+
+
+// NOT Covered, relevant?:
+// EnzymeNewTypeTreeTR
+// EnzymeSetTypeTree
+// EnzymeTypeTreeData0Eq
+// EnzymeSetCLBool
+// EnzymeSetCLInteger
+// EnzymeExtractReturnInfo
+// EnzymeExtractFunctionFromAugmentation
+// EnzymeExtractTapeTypeFromAugmentation
+// EnzymeRegisterAllocationHandler <= prob. not relevant for now
+
 impl TypeTree {
     pub fn new() -> TypeTree {
         let inner = unsafe { EnzymeNewTypeTree() };
@@ -128,3 +166,4 @@ mod tests {
     }*/
 }
 
+//dwarf metadata in llvm-ir und konvertieren in type_tree: https://docs.rs/llvm-sys/110.0.1/llvm_sys/debuginfo/index.html

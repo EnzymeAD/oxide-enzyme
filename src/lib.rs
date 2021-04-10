@@ -1,12 +1,12 @@
 //extern crate llvm_sys;
 //
 
-mod parser;
 
 use std::ptr;
 use std::process;
 use std::ffi::CString;
 
+//use llvm_sys;
 use llvm_sys::{core::*, debuginfo::LLVMGetSubprogram, execution_engine::LLVMCreateExecutionEngineForModule};
 use llvm_sys::ir_reader::LLVMParseIRInContext;
 use llvm_sys::analysis::{LLVMVerifyModule, LLVMVerifierFailureAction};
@@ -20,44 +20,28 @@ pub fn pre_processing() {
         .expect("failed to run cargo");
 }
 
-macro_rules! c_str {
-    ($s:expr) => (
-        concat!($s, "\0").as_ptr() as *const i8
-    );
-}
-
 pub unsafe fn load_llvm() {
     let context = LLVMContextCreate();
     let mut msg = ptr::null_mut();
 
     let mut memory_buf = ptr::null_mut();
     let path = CString::new("./main.bc").unwrap();
-    if LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr(), &mut memory_buf, &mut msg) != 0 {
-        panic!("Could not read iN!");
-    }
+    assert!(LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr(), &mut memory_buf, &mut msg) != 0, "could not read iN!");
 
     let mut module = ptr::null_mut();
-    if LLVMParseIRInContext(context, memory_buf, &mut module, &mut msg) != 0 {
-        panic!("Could not create module!");
-    }
 
-    if LLVMVerifyModule(module, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut msg) != 0{
-        panic!("Could not validate!");
-    }
+    assert!(LLVMParseIRInContext(context, memory_buf, &mut module, &mut msg) != 0, "Could not create module!");
+    assert!(LLVMVerifyModule(module, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut msg) != 0, "Could not validate!");
 
     // load function
     let fnc_name = CString::new("fnc").unwrap();
     let fnc = LLVMGetNamedFunction(module, fnc_name.as_ptr());
 
-    if fnc as usize == 0 {
-        panic!("blub");
-    }
+    assert!(fnc as usize != 0, "blub");
 
     // get metadata
     let metadata = LLVMGetSubprogram(fnc);
-    if metadata as usize == 0 {
-        panic!("Could not load metadata");
-    }
+    assert!(metadata as usize != 0, "Could not load metadata!");
 
     LLVMDisposeModule(module);
     LLVMContextDispose(context);
@@ -65,6 +49,6 @@ pub unsafe fn load_llvm() {
 
 pub fn build() {
     pre_processing();
-    parser::parse();
+    //parser::parse();
     unsafe {load_llvm();}
 }
