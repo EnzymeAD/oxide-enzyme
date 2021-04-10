@@ -28,18 +28,18 @@ pub unsafe fn load_llvm() {
 
     let mut memory_buf = ptr::null_mut();
     let path = CString::new("./main.bc").unwrap();
-    assert!(LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr(), &mut memory_buf, &mut msg) != 0, "could not read iN!");
+    assert!(LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr(), &mut memory_buf, &mut msg) == 0, "could not read iN!");
 
     let mut module = ptr::null_mut();
 
-    assert!(LLVMParseIRInContext(context, memory_buf, &mut module, &mut msg) != 0, "Could not create module!");
-    assert!(LLVMVerifyModule(module, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut msg) != 0, "Could not validate!");
+    assert!(LLVMParseIRInContext(context, memory_buf, &mut module, &mut msg) == 0, "Could not create module!");
+    assert!(LLVMVerifyModule(module, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut msg) == 0, "Could not validate!");
 
     // load function
-    let fnc_name = CString::new("fnc").unwrap();
+    let fnc_name = CString::new("test").unwrap();
     let fnc = LLVMGetNamedFunction(module, fnc_name.as_ptr());
 
-    assert!(fnc as usize != 0, "blub");
+    assert!(fnc as usize != 0);
 
     // get metadata
     let metadata = LLVMGetSubprogram(fnc);
