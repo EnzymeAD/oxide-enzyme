@@ -41,6 +41,15 @@ pub unsafe fn load_llvm() {
 
     assert!(fnc as usize != 0);
 
+    use enzyme_sys::{createEmptyTypeAnalysis, AutoDiff, typeinfo::TypeInfo};
+    let type_analysis = createEmptyTypeAnalysis();
+    let auto_diff = AutoDiff::new(type_analysis);
+    //pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, args: Vec<CDIFFE_TYPE>, type_info: typeinfo::TypeInfo) {
+    auto_diff.create_primal_and_gradient(context as *mut enzyme_sys::LLVMOpaqueContext, fnc as *mut enzyme_sys::LLVMOpaqueValue, enzyme_sys::CDIFFE_TYPE::DFT_OUT_DIFF, Vec::new(), TypeInfo);
+
+    panic!("");
+
+
     // get metadata
     let metadata = LLVMGetSubprogram(fnc);
     assert!(metadata as usize != 0, "Could not load metadata!");

@@ -11,6 +11,7 @@ pub mod tree;
 pub mod typeinfo;
 
 use std::ffi::CString;
+use std::ptr;
 //use llvm_sys::prelude::LLVMValueRef;
 
 pub fn createEmptyTypeAnalysis() -> EnzymeTypeAnalysisRef {
@@ -32,6 +33,41 @@ impl AutoDiff {
         AutoDiff { logic_ref, type_analysis }
     }
 
+    pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, args: Vec<CDIFFE_TYPE>, type_info: typeinfo::TypeInfo) {
+        let tree_tmp = tree::TypeTree::from_type(CConcreteType::DT_Float, context);
+        let mut args_tree = vec![tree_tmp.inner];
+
+        let mut args_activity = vec![CDIFFE_TYPE::DFT_OUT_DIFF];
+        let mut args_uncachable = vec![0];
+
+        let ret = tree::TypeTree::from_type(CConcreteType::DT_Float, context);
+
+        let kv_tmp = IntList {
+            data: ptr::null_mut(),
+            size: 0,
+        };
+
+        let mut known_values = vec![kv_tmp];
+
+        let dummy_type = CFnTypeInfo {
+            Arguments: args_tree.as_mut_ptr(),
+            Return: ret.inner,
+            KnownValues: known_values.as_mut_ptr(),
+        };
+        let foo: LLVMValueRef = unsafe {
+            EnzymeCreatePrimalAndGradient(
+                self.logic_ref, // Logic
+                fnc_todiff, ret_type, // LLVM function, return type
+                args_activity.as_mut_ptr(), 1, // constant arguments
+                self.type_analysis, // type analysis struct
+                0, 0, 1, // return value, dret_used, top_level
+                ptr::null_mut(), dummy_type, // additional_arg, type info (return + args)
+                args_uncachable.as_mut_ptr(), 1, // unreachable arguments
+                ptr::null_mut(), // write augmented function to this
+                0, 0 // atomic_add, post_opt
+            )
+        };
+    }
     /*
     pub fn create_primal_and_gradient(&self, fnc_todiff: LLVMValueRef, retType: CDIFFE_TYPE, args: Vec<CDIFFE_TYPE>, type_info: typeinfo::TypeInfo) {
       let foo: LLVMValueRef = unsafe {
