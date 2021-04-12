@@ -73,22 +73,6 @@ impl AutoDiff {
 
         foo
     }
-    /*
-    pub fn create_primal_and_gradient(&self, fnc_todiff: LLVMValueRef, retType: CDIFFE_TYPE, args: Vec<CDIFFE_TYPE>, type_info: typeinfo::TypeInfo) {
-      let foo: LLVMValueRef = unsafe {
-        EnzymeCreatePrimalAndGradient(self.logic_ref, fnc_todiff, retType, args.as_mut_ptr(), args.len(), self.type_analysis, 
-         returnValue: u8,
-         dretUsed: u8,
-         topLevel: u8, ??
-         additionalArg: LLVMTypeRef,
-         typeInfo: CFnTypeInfo,
-         _uncacheable_args: *mut u8, // simple test => no uncacheable args
-         uncacheable_args_size: size_t, // 0
-         augmented: EnzymeAugmentedReturnPtr,
-         AtomicAdd: u8, //doesn't matter, lets say true
-         PostOpt: u8, // sound's good
-      }
-    }*/
 }
 
 impl Drop for AutoDiff {

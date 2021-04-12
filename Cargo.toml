@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 enzyme-sys = { path = "enzyme-sys" }
 llvm-sys = { version = "110", features = ["no-llvm-linking"] }
+
+cc = "1.0"
