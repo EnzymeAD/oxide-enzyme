@@ -22,8 +22,8 @@ use llvm_sys::target::*;
 use llvm_sys::analysis::LLVMVerifyFunction;
 
 pub fn pre_processing() {
-    //let out = process::Command::new("/usr/bin/rustc")
-    let out = process::Command::new("/home/zuse/.cargo/bin/rustc")
+    let out = process::Command::new("/usr/bin/rustc")
+    //let out = process::Command::new("/home/zuse/.cargo/bin/rustc")
         .args(&["--emit=obj", "--emit=llvm-bc",  "src/main.rs", "-C", "debuginfo=2"])
         .output()
         .expect("failed to run cargo");
@@ -114,29 +114,26 @@ pub unsafe fn load_llvm() {
     let output_txt = CString::new("result.txt").unwrap().into_raw();
     LLVMPrintModuleToFile(module, output_txt, &mut msg);
 
-    // Call
-    //llvm-extract -f --func=diffetestx result.txt -o=testx.bc
+    assert!(LLVMTargetMachineEmitToFile(target_machine, module, output_file, LLVMCodeGenFileType::LLVMObjectFile, &mut msg) == 0, "{:?}", CStr::from_ptr(msg).to_str().unwrap());
 
-    let path = CString::new("./testx.bc").unwrap();
-    let (context2, module2) = read_bc(path);
-    assert!(LLVMTargetMachineEmitToFile(target_machine, module2, output_file, LLVMCodeGenFileType::LLVMObjectFile, &mut msg) == 0, "{:?}", CStr::from_ptr(msg).to_str().unwrap());
+    // objcopy result.o result_stripped.o --globalize-symbol=diffetestx --keep-symbol=diffetestx --redefine-sym diffetestx.1=diffetestx -S
+    let out = std::process::Command::new("objcopy")
+        .arg("result.o").arg("result_stripped.o")
+        .arg("--globalize-symbol=diffetestx")
+        .arg("--keep-symbol=diffetestx")
+        .arg("--redefine-sym").arg("diffetestx.1=diffetestx")
+        .arg("-S")
+        .output().unwrap();
     
-    //see: https://github.com/nagisa/llvm_build_utils.rs/blob/master/src/lib.rs#L463
-
-
-    /* pack to archive with https://docs.rs/cc/1.0.67/cc/struct.Build.html#method.compile */
     cc::Build::new()
-      .object("result.o")
+      .object("result_stripped.o")
       .compile("TestGrad");
     
-
-
-
     LLVMDisposeMessage(msg);
     LLVMDisposeTargetMachine(target_machine);
     LLVMDisposeModule(module);
     LLVMContextDispose(context);
-    LLVMContextDispose(context2);
+    //LLVMContextDispose(context2);
 }
 
 pub fn build() {
