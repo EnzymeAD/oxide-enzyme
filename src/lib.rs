@@ -39,7 +39,7 @@ unsafe fn create_target_machine() -> LLVMTargetMachineRef {
     let cpu = LLVMGetHostCPUName();
     let feature = LLVMGetHostCPUFeatures();
     let opt_level = LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault;
-    let reloc_mode = LLVMRelocMode::LLVMRelocDefault;
+    let reloc_mode = LLVMRelocMode::LLVMRelocDynamicNoPic;
     let code_model = LLVMCodeModel::LLVMCodeModelDefault;
     
     println!("CPU: {:?}", CStr::from_ptr(cpu).to_str().unwrap());
@@ -118,10 +118,17 @@ pub unsafe fn load_llvm() {
 
     // objcopy result.o result_stripped.o --globalize-symbol=diffetestx --keep-symbol=diffetestx --redefine-sym diffetestx.1=diffetestx -S
     let out = std::process::Command::new("objcopy")
-        .arg("result.o").arg("result_stripped.o")
-        .arg("--globalize-symbol=diffetestx")
-        .arg("--keep-symbol=diffetestx")
+        .arg("result.o").arg("result_stripped.o").arg("-w")
+        .arg("--globalize-symbol=diffe*")
+        .arg("--globalize-symbol=augmented_*")
+        .arg("--globalize-symbol=preprocess_*")
+        .arg("--localize-symbol=*")
+        //.arg("--keep-symbol=diffe*")
+        //.arg("--keep-symbol=augmented_*")
+        //.arg("--keep-symbol=preprocess_*")
+        .arg("--keep-symbol=*")
         .arg("--redefine-sym").arg("diffetestx.1=diffetestx")
+        //.arg("--redefine-sym").arg("diffef.2=diffef")
         .arg("-S")
         .output().unwrap();
     
