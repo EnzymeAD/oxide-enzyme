@@ -7,7 +7,6 @@ use std::process;
 use std::ffi::CString;
 use std::ffi::CStr;
 
-//use llvm_sys;
 use llvm_sys::{core::*, debuginfo::LLVMGetSubprogram, execution_engine::LLVMCreateExecutionEngineForModule};
 use llvm_sys::ir_reader::LLVMParseIRInContext;
 use llvm_sys::analysis::{LLVMVerifyModule, LLVMVerifierFailureAction};
@@ -31,8 +30,6 @@ pub fn pre_processing() {
 
     dbg!(&out);
 }
-
-
 
 
 unsafe fn create_target_machine() -> LLVMTargetMachineRef {
@@ -73,14 +70,14 @@ unsafe fn read_bc(path: CString) -> (LLVMContextRef, LLVMModuleRef) {
     let mut msg = ptr::null_mut();
 
     let mut memory_buf = ptr::null_mut();
-    assert!(LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr(), &mut memory_buf, &mut msg) == 0, "could not read iN!");
+    assert!(LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr(), &mut memory_buf, &mut msg) == 0, "could not read in!");
 
     let mut module = ptr::null_mut();
 
     assert!(LLVMParseIRInContext(context, memory_buf, &mut module, &mut msg) == 0, "Could not create module!");
     assert!(LLVMVerifyModule(module, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut msg) == 0, "Could not validate!");
-    LLVMDisposeMessage(msg);
 
+    LLVMDisposeMessage(msg);
     (context, module)
 }
 
@@ -104,19 +101,11 @@ pub unsafe fn load_llvm() {
     let auto_diff = AutoDiff::new(type_analysis);
 
     let grad_func: LLVMValueRef = auto_diff.create_primal_and_gradient(context as *mut enzyme_sys::LLVMOpaqueContext, fnc as *mut enzyme_sys::LLVMOpaqueValue, enzyme_sys::CDIFFE_TYPE::DFT_OUT_DIFF, Vec::new(), TypeInfo) as LLVMValueRef;
-    //LLVMIsAFunction(grad_func);
-    let context2 = LLVMContextCreate();
 
-    // Create a LLVMModule with only grad_func inside for linking :)
-    let mod_name = CString::new("gradModule").unwrap();
-    let gradMod: LLVMModuleRef = LLVMModuleCreateWithName(mod_name.as_ptr());
-
-    //LLVMAddFunction(gradMod, fnc_name.as_ptr() , grad_func);
+    //LLVMAddFunction(newModule, fnc_name.as_ptr(), grad_func); // TODO Not that simple, but test as a cleaner alternative ?
 
     println!("TypeOf(grad_func) {:?}", LLVMTypeOf(grad_func));
     println!("param count: grad_func {:?}", LLVMCountParams(grad_func));
-    //LLVMVerifyFunction(grad_func, &mut msg);
-
     println!("Function: {:?}", grad_func);
 
     let target_machine = create_target_machine(); // uses env Information to create a machine suitable for the user
@@ -124,8 +113,9 @@ pub unsafe fn load_llvm() {
     let output_file = CString::new("result.o").unwrap().into_raw();
     let output_txt = CString::new("result.txt").unwrap().into_raw();
     LLVMPrintModuleToFile(module, output_txt, &mut msg);
-    //assert!(LLVMTargetMachineEmitToFile(target_machine, module, output_file, LLVMCodeGenFileType::LLVMObjectFile, &mut msg) == 0, "{:?}", CStr::from_ptr(msg).to_str().unwrap());
-    
+
+    // Call
+    //llvm-extract -f --func=diffetestx result.txt -o=testx.bc
 
     let path = CString::new("./testx.bc").unwrap();
     let (context2, module2) = read_bc(path);
@@ -134,20 +124,11 @@ pub unsafe fn load_llvm() {
     //see: https://github.com/nagisa/llvm_build_utils.rs/blob/master/src/lib.rs#L463
 
 
-    /*
-     * pack to archive with https://docs.rs/cc/1.0.67/cc/struct.Build.html#method.compile */
-
-    
+    /* pack to archive with https://docs.rs/cc/1.0.67/cc/struct.Build.html#method.compile */
     cc::Build::new()
       .object("result.o")
-      //.flag("-fPIE")
-      //.shared_flag(true)
-      //.static_flag(true)
       .compile("TestGrad");
     
-    //panic!("");
-
-    // emit link instruction \o/
 
 
 
@@ -160,6 +141,5 @@ pub unsafe fn load_llvm() {
 
 pub fn build() {
     pre_processing();
-    //parser::parse();
     unsafe {load_llvm();}
 }
