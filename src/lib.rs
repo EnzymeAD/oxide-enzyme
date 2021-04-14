@@ -1,37 +1,50 @@
-//extern crate llvm_sys;
-//
+use std::{ptr, process, env};
+use std::ffi::{CString, CStr};
+use std::path::{Path, PathBuf};
 
-
-use std::ptr;
-use std::process;
-use std::ffi::CString;
-use std::ffi::CStr;
-
-use llvm_sys::{core::*, debuginfo::LLVMGetSubprogram, execution_engine::LLVMCreateExecutionEngineForModule};
+use llvm_sys::core::*;
 use llvm_sys::ir_reader::LLVMParseIRInContext;
 use llvm_sys::analysis::{LLVMVerifyModule, LLVMVerifierFailureAction};
-use llvm_sys::execution_engine::{LLVMGetFunctionAddress, LLVMLinkInMCJIT};
 use llvm_sys::target::LLVM_InitializeNativeTarget;
-
-
-use llvm_sys::*;
 use llvm_sys::prelude::*;
-use llvm_sys::core::*;
 use llvm_sys::target_machine::*;
 use llvm_sys::target::*;
-use llvm_sys::analysis::LLVMVerifyFunction;
 
-pub fn pre_processing() {
-    let out = process::Command::new("/usr/bin/rustc")
-    //let out = process::Command::new("/home/zuse/.cargo/bin/rustc")
-        .args(&["--emit=obj", "--emit=llvm-bc",  "src/main.rs", "-C", "debuginfo=2"])
-        .output()
-        .expect("failed to run cargo");
+use enzyme_sys::{createEmptyTypeAnalysis, AutoDiff, typeinfo::TypeInfo};
 
-    dbg!(&out);
+/// Run a command and panic with error message if not succeeded
+fn run_and_printerror(command: &mut process::Command) {
+    match command.status() {
+        Ok(status) => {
+            if !status.success() {
+                panic!("Failed: `{:?}` ({})", command, status);
+            }
+        }
+        Err(error) => {
+            panic!("Failed: `{:?}` ({})", command, error);
+        }
+    }
+}
+
+/// Generate LLVM BC artifact
+///
+/// Compiles entry point into LLVM IR binary representation with debug informations. The artifact
+/// is used to generate the derivative function with Enzyme.
+pub fn generate_bc(entry_file: &Path) -> PathBuf {
+    let mut out_file = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    out_file.push(entry_file.file_name().unwrap());
+
+    let mut cmd = process::Command::new("/usr/bin/rustc");
+    //let mut cmd = process::Command::new("/home/zuse/.cargo/bin/rustc")
+    cmd.args(&["--emit=llvm-bc",  "src/main.rs", "-C", "debuginfo=2", "-o", &out_file.to_str().unwrap()]);
+
+    run_and_printerror(&mut cmd);
+
+    out_file
 }
 
 
+/// Create target machine with default relocation/optimization/code model
 unsafe fn create_target_machine() -> LLVMTargetMachineRef {
     LLVM_InitializeNativeTarget(); //needed for GetDefaultTargetTriple()
 
@@ -47,28 +60,28 @@ unsafe fn create_target_machine() -> LLVMTargetMachineRef {
     println!("Feature: {:?}", CStr::from_ptr(feature).to_str().unwrap());
 
     let mut msg = ptr::null_mut();
-    // Create Target Machine
+
+    // get target reference
     let mut target = ptr::null_mut();
-    assert!(LLVMGetTargetFromTriple(triple, &mut target, &mut msg) == 0, "Could not get target machine from triple! {:?}", CStr::from_ptr(msg).to_str().unwrap());
+    assert!(
+        LLVMGetTargetFromTriple(triple, &mut target, &mut msg) == 0, 
+        "Could not get target machine from triple! {:?}", CStr::from_ptr(msg).to_str().unwrap()
+    );
+
+    // get target machine
     let target_machine = LLVMCreateTargetMachine(target, triple, cpu, feature, opt_level, reloc_mode, code_model);
     assert!(!target_machine.is_null(), "target_machine is null!");
-    println!("Got TargetMachine!");
     
-    /*
-    let dataLayout = LLVMCreateTargetDataLayout(target_machine);
-    let dataLayoutStr = LLVMCopyStringRepOfTargetData(dataLayout);
-    println!("DataLayout: {:?}", CStr::from_ptr(dataLayoutStr).to_str().unwrap());
-    */
-
     LLVMDisposeMessage(msg);
     target_machine
 }
 
-
-unsafe fn read_bc(path: CString) -> (LLVMContextRef, LLVMModuleRef) {
+/// Read the binary representation of LLVM IR code into a module and context
+unsafe fn read_bc(path: &Path) -> (LLVMContextRef, LLVMModuleRef) {
     let context = LLVMContextCreate();
     let mut msg = ptr::null_mut();
 
+    let path = CString::new(path.to_str().unwrap()).unwrap();
     let mut memory_buf = ptr::null_mut();
     assert!(LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr(), &mut memory_buf, &mut msg) == 0, "could not read in!");
 
@@ -82,61 +95,79 @@ unsafe fn read_bc(path: CString) -> (LLVMContextRef, LLVMModuleRef) {
 }
 
 
-pub unsafe fn load_llvm() {
+pub unsafe fn load_llvm(bc_file: &Path, fnc: &str) -> (LLVMContextRef, LLVMModuleRef, LLVMValueRef) {
     LLVM_InitializeAllAsmPrinters(); // needed for LLVMTargetMachineEmitToFile()
 
-    let path = CString::new("./main.bc").unwrap();
-    let (context, module) = read_bc(path);
+    // load generated artifact
+    let (context, module) = read_bc(bc_file);
 
     // load function
-    let fnc_name = CString::new("testx").unwrap();
+    let fnc_name = CString::new(fnc).unwrap();
     let fnc = LLVMGetNamedFunction(module, fnc_name.as_ptr());
-    
-    let mut msg = ptr::null_mut();
-
     assert!(fnc as usize != 0);
+    
+    (context, module, fnc)
+}
 
-    use enzyme_sys::{createEmptyTypeAnalysis, AutoDiff, typeinfo::TypeInfo};
+unsafe fn generate_grad_function(context: LLVMContextRef, fnc: LLVMValueRef) {
     let type_analysis = createEmptyTypeAnalysis();
     let auto_diff = AutoDiff::new(type_analysis);
 
     let grad_func: LLVMValueRef = auto_diff.create_primal_and_gradient(context as *mut enzyme_sys::LLVMOpaqueContext, fnc as *mut enzyme_sys::LLVMOpaqueValue, enzyme_sys::CDIFFE_TYPE::DFT_OUT_DIFF, Vec::new(), TypeInfo) as LLVMValueRef;
 
-    //LLVMAddFunction(newModule, fnc_name.as_ptr(), grad_func); // TODO Not that simple, but test as a cleaner alternative ?
-
     println!("TypeOf(grad_func) {:?}", LLVMTypeOf(grad_func));
     println!("param count: grad_func {:?}", LLVMCountParams(grad_func));
     println!("Function: {:?}", grad_func);
+}
 
+unsafe fn emit_obj(module: LLVMModuleRef, entry_file: &Path) -> PathBuf {
     let target_machine = create_target_machine(); // uses env Information to create a machine suitable for the user
 
-    let output_file = CString::new("result.o").unwrap().into_raw();
-    let output_txt = CString::new("result.txt").unwrap().into_raw();
+    let (out, out_stripped, out_text) = (
+        entry_file.with_file_name("result").with_extension("o"),
+        entry_file.with_file_name("result_stripped").with_extension("o"),
+        entry_file.with_file_name("result").with_extension("txt")
+    );
+
+    let mut msg = ptr::null_mut();
+    let output_file = CString::new(out.to_str().unwrap()).unwrap().into_raw();
+    let output_txt = CString::new(out_text.to_str().unwrap()).unwrap().into_raw();
     LLVMPrintModuleToFile(module, output_txt, &mut msg);
 
     assert!(LLVMTargetMachineEmitToFile(target_machine, module, output_file, LLVMCodeGenFileType::LLVMObjectFile, &mut msg) == 0, "{:?}", CStr::from_ptr(msg).to_str().unwrap());
 
     // objcopy result.o result_stripped.o --globalize-symbol=diffetestx --keep-symbol=diffetestx --redefine-sym diffetestx.1=diffetestx -S
-    let out = std::process::Command::new("objcopy")
-        .arg("result.o").arg("result_stripped.o")
+    let mut objcopy_cmd = std::process::Command::new("objcopy");
+    out.args(&[
+        out, &out_stripped,
+        "--globalize-symbol=diffetestx",
         .arg("--globalize-symbol=diffetestx")
         .arg("--keep-symbol=diffetestx")
         .arg("--redefine-sym").arg("diffetestx.1=diffetestx")
         .arg("-S")
         .output().unwrap();
     
-    cc::Build::new()
-      .object("result_stripped.o")
-      .compile("TestGrad");
-    
     LLVMDisposeMessage(msg);
     LLVMDisposeTargetMachine(target_machine);
-    LLVMDisposeModule(module);
-    LLVMContextDispose(context);
-    //LLVMContextDispose(context2);
+
+    out_stripped
 }
 
-pub fn build() {
-    pre_processing();
-    unsafe {load_llvm();}
+pub fn build(entry_file: &Path, fnc: &str) {
+    let bc_file = generate_bc(entry_file);
+    let out_stripped = unsafe {
+        let (context, module, fnc) = load_llvm(&bc_file, fnc);
+        generate_grad_function(context, fnc);
+        let obj = emit_obj(module, entry_file);
+
+        LLVMDisposeModule(module);
+        LLVMContextDispose(context);
+
+        obj
+    };
+
+    // compile to static archive
+    cc::Build::new()
+      .object(out_stripped)
+      .compile("GradFunc");
 }
