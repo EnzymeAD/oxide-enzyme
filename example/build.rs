@@ -3,5 +3,8 @@ fn main() {
     println!("cargo:rerun-if-changed=src/main.rs");
     println!("cargo:rerun-if-changed=../src/lib.rs");
 
-    oxide_enzyme::build();
+    oxide_enzyme::build(
+        "src/main.rs",
+        "testx"
+    );
 }

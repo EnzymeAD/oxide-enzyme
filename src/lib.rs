@@ -52,7 +52,7 @@ unsafe fn create_target_machine() -> LLVMTargetMachineRef {
     let cpu = LLVMGetHostCPUName();
     let feature = LLVMGetHostCPUFeatures();
     let opt_level = LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault;
-    let reloc_mode = LLVMRelocMode::LLVMRelocDefault;
+    let reloc_mode = LLVMRelocMode::LLVMRelocDynamicNoPic;
     let code_model = LLVMCodeModel::LLVMCodeModelDefault;
     
     println!("CPU: {:?}", CStr::from_ptr(cpu).to_str().unwrap());
@@ -120,7 +120,7 @@ unsafe fn generate_grad_function(context: LLVMContextRef, fnc: LLVMValueRef) {
     println!("Function: {:?}", grad_func);
 }
 
-unsafe fn emit_obj(module: LLVMModuleRef, entry_file: &Path) -> PathBuf {
+unsafe fn emit_obj(module: LLVMModuleRef, entry_file: &Path, fnc: &str) -> PathBuf {
     let target_machine = create_target_machine(); // uses env Information to create a machine suitable for the user
 
     let (out, out_stripped, out_text) = (
@@ -136,16 +136,20 @@ unsafe fn emit_obj(module: LLVMModuleRef, entry_file: &Path) -> PathBuf {
 
     assert!(LLVMTargetMachineEmitToFile(target_machine, module, output_file, LLVMCodeGenFileType::LLVMObjectFile, &mut msg) == 0, "{:?}", CStr::from_ptr(msg).to_str().unwrap());
 
-    // objcopy result.o result_stripped.o --globalize-symbol=diffetestx --keep-symbol=diffetestx --redefine-sym diffetestx.1=diffetestx -S
     let mut objcopy_cmd = std::process::Command::new("objcopy");
-    out.args(&[
-        out, &out_stripped,
-        "--globalize-symbol=diffetestx",
-        .arg("--globalize-symbol=diffetestx")
-        .arg("--keep-symbol=diffetestx")
-        .arg("--redefine-sym").arg("diffetestx.1=diffetestx")
-        .arg("-S")
-        .output().unwrap();
+    objcopy_cmd.arg(out);
+    objcopy_cmd.arg(&out_stripped);
+    objcopy_cmd.args(&[
+        "-w", "--globalize-symbol=diffe*",
+        "--globalize-symbol=augmented_*",
+        "--globalize-symbol=preprocess_*",
+        "--localize-symbol=*",
+        "--keep-symbol=*",
+        "--redefine-sym", &format!("diffe{}.1=diffe{}", fnc, fnc),
+        "-S"
+    ]);
+
+    run_and_printerror(&mut objcopy_cmd);
     
     LLVMDisposeMessage(msg);
     LLVMDisposeTargetMachine(target_machine);
@@ -153,12 +157,15 @@ unsafe fn emit_obj(module: LLVMModuleRef, entry_file: &Path) -> PathBuf {
     out_stripped
 }
 
-pub fn build(entry_file: &Path, fnc: &str) {
-    let bc_file = generate_bc(entry_file);
+pub fn build<T: AsRef<Path>>(entry_file: T, fnc_name: &str) {
+    // generate LLVM IR binary representation
+    let bc_file = generate_bc(entry_file.as_ref());
+
+    // create derivative
     let out_stripped = unsafe {
-        let (context, module, fnc) = load_llvm(&bc_file, fnc);
+        let (context, module, fnc) = load_llvm(&bc_file, fnc_name);
         generate_grad_function(context, fnc);
-        let obj = emit_obj(module, entry_file);
+        let obj = emit_obj(module, entry_file.as_ref(), fnc_name);
 
         LLVMDisposeModule(module);
         LLVMContextDispose(context);
