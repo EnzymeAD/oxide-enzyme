@@ -7,6 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dirs = "3.0"
 
 [build-dependencies]
+dirs = "3.0"
 oxide-enzyme = { path = ".." }

@@ -1,7 +1,6 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-
 include!(concat!(env!("OUT_DIR"), "/enzyme.rs"));
 
 // TODO check where we should change the generated bindings and remove the mut. Apparently it's added everywhere (?), but enzyme handles quite a few args as const.
@@ -12,10 +11,10 @@ pub mod typeinfo;
 
 use std::ffi::CString;
 use std::ptr;
-//use llvm_sys::prelude::LLVMValueRef;
 
 pub fn createEmptyTypeAnalysis() -> EnzymeTypeAnalysisRef {
-    let tripple = CString::new("x86_64-unknown-linux-gnu").unwrap().into_raw();
+    let platform: String = std::env::var("TARGET").unwrap();
+    let tripple = CString::new(platform).unwrap().into_raw();
     unsafe {
       CreateTypeAnalysis(tripple, std::ptr::null_mut(), std::ptr::null_mut(), 0)
     }
@@ -33,7 +32,7 @@ impl AutoDiff {
         AutoDiff { logic_ref, type_analysis }
     }
 
-    pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, args: Vec<CDIFFE_TYPE>, type_info: typeinfo::TypeInfo) -> LLVMValueRef {
+    pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE) -> LLVMValueRef {
         let tree_tmp = tree::TypeTree::from_type(CConcreteType::DT_Float, context)
             .prepend(0);
 
@@ -57,21 +56,20 @@ impl AutoDiff {
             Return: ret.inner,
             KnownValues: known_values.as_mut_ptr(),
         };
-        let foo: LLVMValueRef = unsafe {
+
+        unsafe {
             EnzymeCreatePrimalAndGradient(
                 self.logic_ref, // Logic
                 fnc_todiff, ret_type, // LLVM function, return type
                 args_activity.as_mut_ptr(), 1, // constant arguments
                 self.type_analysis, // type analysis struct
-                0, 0, 1, // return value, dret_used, top_level
+                0, 0, CDerivativeMode::DEM_ReverseModeCombined, // return value, dret_used, top_level which was 1
                 ptr::null_mut(), dummy_type, // additional_arg, type info (return + args)
                 args_uncachable.as_mut_ptr(), 1, // unreachable arguments
                 ptr::null_mut(), // write augmented function to this
-                0, 0 // atomic_add, post_opt
+                0, 1 // atomic_add, post_opt
             )
-        };
-
-        foo
+        }
     }
 }
 
@@ -84,7 +82,7 @@ impl Drop for AutoDiff {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use llvm_sys::core::{LLVMContextCreate, LLVMModuleCreateWithName};
+    use llvm_sys::core::LLVMModuleCreateWithName;
     use std::ffi::CString;
 
     #[test]
@@ -131,7 +129,8 @@ mod tests {
       assert!(v1- 2. < epsilon);
       assert!(v1- 4. < epsilon);
       assert!(v1- 5. < epsilon);
-    }*/
-
-
+    }
+    */
 }
+
+pub mod utils;
