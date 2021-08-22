@@ -12,5 +12,7 @@ jobs:
         env:
           # Target branch
           PAGES_BRANCH: gh-pages
+          # Build Dir containing config.toml
+          BUILD_DIR: docs/website/
           # Provide personal access token
           TOKEN: ${{ secrets.TOKEN }}
