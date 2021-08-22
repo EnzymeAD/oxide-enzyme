@@ -14,3 +14,8 @@ Cargo.lock
 **/*.bc
 **/result.txt
 **/*.swp
+
+
+# Generated artifacts of website (with Zola)
+docs/website/public/*
+docs/website/static/rustdocs/

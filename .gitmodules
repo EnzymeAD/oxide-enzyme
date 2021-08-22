@@ -1,0 +1,3 @@
+[submodule "docs/website/themes/book"]
+	path = docs/website/themes/book
+	url = https://github.com/getzola/book.git
