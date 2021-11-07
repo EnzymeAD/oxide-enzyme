@@ -11,11 +11,16 @@ pub mod typeinfo;
 
 use std::ffi::CString;
 use std::ptr;
+use std::os::raw::c_void;
 
-pub fn SafeEnzymeSetCLBool(ptr: *mut ::std::os::raw::c_void, val: bool) {
+pub fn SafeEnzymeSetCLBool(val: bool) {
+    #[link(name = "Enzyme-13")]
+    extern "C" {
+        static mut EnzymePrint: c_void;
+    }
     let val: u8 = if val { 1 } else { 0 };
     unsafe {
-        EnzymeSetCLBool(ptr, val);
+        EnzymeSetCLBool(&mut EnzymePrint as *mut c_void, val);
     }
 }
 

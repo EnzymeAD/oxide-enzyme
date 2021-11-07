@@ -1,5 +1,4 @@
 use std::ffi::{CStr, CString};
-use std::os::raw::c_void;
 use std::path::{Path, PathBuf};
 use std::{env, process, ptr};
 
@@ -374,16 +373,12 @@ pub fn build<T: AsRef<Path>>(entry_file: T, primary_fnc_names: Vec<String>) {
     compile_rs_to_bc(&entry_file.as_ref().to_path_buf(), &out_bc);
 
     unsafe {
-        #[link(name = "Enzyme-13")]
-        extern "C" {
-            static mut EnzymePrint: c_void;
-        }
-        EnzymeSetCLBool(&mut EnzymePrint as *mut c_void, 1u8);
-        //SafeEnzymeSetCLBool(EnzymePrintType, true); // safe wrapper for later
 
         let (module, context) = read_bc(&out_bc);
         let functions = load_primary_functions(module, primary_fnc_names.clone());
+        SafeEnzymeSetCLBool(true);
         let mut grad_fncs = generate_grad_function(context, functions);
+        SafeEnzymeSetCLBool(false);
         remove_U_symbols(module, context, &mut grad_fncs, primary_fnc_names.clone());
         localize_all_symbols(module);
         globalize_grad_symbols(module, primary_fnc_names);
