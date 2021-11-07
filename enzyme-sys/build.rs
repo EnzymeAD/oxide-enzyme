@@ -1,12 +1,17 @@
 use std::path::Path;
 use dirs;
 
+const ENZYME_VER: &str = "0.0.20";
+const RUSTC_VER: &str = "1.56.0";
+const LLVM_VER: &str = "13";
+
 fn choose_library() {
     let platform = std::env::var("TARGET").unwrap();
-    let enzyme_path = dirs::config_dir().unwrap().join("enzyme").join("Enzyme-0.0.16").join("enzyme").join("build").join("Enzyme");
-    let llvm_path   = dirs::config_dir().unwrap().join("enzyme").join("rustc-1.54.0-src").join("build").join(&platform).join("llvm").join("lib");
-    let enzyme_lib  = "Enzyme-12";
-    let llvm_lib    = "LLVM-12-rust-1.56.0-nightly";
+    let enzyme_basedir = dirs::config_dir().unwrap().join("enzyme");
+    let enzyme_path = enzyme_basedir.join("Enzyme-".to_owned() + ENZYME_VER).join("enzyme").join("build").join("Enzyme");
+    let llvm_path   = enzyme_basedir.join("rustc-".to_owned() + RUSTC_VER + "-src").join("build").join(&platform).join("llvm").join("lib");
+    let enzyme_lib  = "Enzyme-".to_owned() + LLVM_VER;
+    let llvm_lib    = "LLVM-".to_owned() + LLVM_VER + "-rust-" + RUSTC_VER + "-nightly";
     assert!(enzyme_path.exists(), "enzyme dir couldn't be found: {}", enzyme_path.display());
     assert!(llvm_path.exists(),   "llvm dir couldn't be found: {}"  ,   llvm_path.display());
     println!("cargo:rustc-link-search={}", enzyme_path.display());

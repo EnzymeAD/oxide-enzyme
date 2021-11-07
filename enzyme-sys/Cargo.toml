@@ -6,7 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-llvm-sys = { version = "120.1", features = ["no-llvm-linking"] }
+llvm-sys = { version = "130.0", features = ["no-llvm-linking"] }
 bindgen = "0.58"
 dirs = "3.0"
 reqwest = { version = "0.11", features = ["blocking"] }

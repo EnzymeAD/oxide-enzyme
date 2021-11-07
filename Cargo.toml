@@ -1,13 +1,13 @@
 [package]
 name = "oxide-enzyme"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 dirs = "3.0"
 enzyme-sys = { path = "enzyme-sys" }
-llvm-sys = { version = "120.1", features = ["no-llvm-linking"] }
+llvm-sys = { version = "130.0", features = ["no-llvm-linking"] }
 
 cc = "1.0"

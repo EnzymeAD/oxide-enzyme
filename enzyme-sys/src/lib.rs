@@ -12,6 +12,13 @@ pub mod typeinfo;
 use std::ffi::CString;
 use std::ptr;
 
+pub fn SafeEnzymeSetCLBool(ptr: *mut ::std::os::raw::c_void, val: bool) {
+    let val: u8 = if val { 1 } else { 0 };
+    unsafe {
+        EnzymeSetCLBool(ptr, val);
+    }
+}
+
 pub fn createEmptyTypeAnalysis() -> EnzymeTypeAnalysisRef {
     let platform: String = std::env::var("TARGET").unwrap();
     let tripple = CString::new(platform).unwrap().into_raw();
