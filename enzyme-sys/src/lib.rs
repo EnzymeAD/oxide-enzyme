@@ -18,9 +18,8 @@ pub fn SafeEnzymeSetCLBool(val: bool) {
     extern "C" {
         static mut EnzymePrint: c_void;
     }
-    let val: u8 = if val { 1 } else { 0 };
     unsafe {
-        EnzymeSetCLBool(&mut EnzymePrint as *mut c_void, val);
+        EnzymeSetCLBool(std::ptr::addr_of_mut!(EnzymePrint), val as u8);
     }
 }
 
