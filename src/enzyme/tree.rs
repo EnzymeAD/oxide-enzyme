@@ -1,7 +1,7 @@
 use std::ffi::{CStr, CString};
 use std::fmt;
 
-use crate::{CTypeTreeRef, EnzymeFreeTypeTree, EnzymeNewTypeTree, EnzymeNewTypeTreeCT, CConcreteType, EnzymeTypeTreeOnlyEq, EnzymeMergeTypeTree, EnzymeTypeTreeShiftIndiciesEq, EnzymeTypeTreeToString, EnzymeTypeTreeToStringFree};
+use super::enzyme_sys::{CTypeTreeRef, EnzymeFreeTypeTree, EnzymeNewTypeTree, EnzymeNewTypeTreeCT, CConcreteType, EnzymeTypeTreeOnlyEq, EnzymeMergeTypeTree, EnzymeTypeTreeShiftIndiciesEq, EnzymeTypeTreeToString, EnzymeTypeTreeToStringFree};
 use crate::LLVMOpaqueContext;
 
 pub struct TypeTree {

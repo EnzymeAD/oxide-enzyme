@@ -10,8 +10,12 @@ use llvm_sys::target::*;
 use llvm_sys::target_machine::*;
 use llvm_sys::LLVMLinkage;
 
-use enzyme_sys::utils;
-use enzyme_sys::{createEmptyTypeAnalysis, AutoDiff, EnzymeSetCLBool, SafeEnzymeSetCLBool};
+mod utils;
+mod enzyme;
+use enzyme::{create_empty_type_analysis, AutoDiff, enzyme_set_clbool};
+use enzyme::{LLVMOpaqueContext, LLVMOpaqueValue, CDIFFE_TYPE};
+
+
 
 /// Run a command and panic with error message if not succeeded
 fn run_and_printerror(command: &mut process::Command) {
@@ -142,15 +146,15 @@ unsafe fn generate_grad_function(
     context: LLVMContextRef,
     mut functions: Vec<LLVMValueRef>,
 ) -> Vec<LLVMValueRef> {
-    let type_analysis = createEmptyTypeAnalysis();
+    let type_analysis = create_empty_type_analysis();
     let auto_diff = AutoDiff::new(type_analysis);
 
     let mut grad_fncs = vec![];
     for &mut fnc in functions.iter_mut() {
         let grad_func: LLVMValueRef = auto_diff.create_primal_and_gradient(
-            context as *mut enzyme_sys::LLVMOpaqueContext,
-            fnc as *mut enzyme_sys::LLVMOpaqueValue,
-            enzyme_sys::CDIFFE_TYPE::DFT_OUT_DIFF,
+            context as *mut LLVMOpaqueContext,
+            fnc as *mut LLVMOpaqueValue,
+            CDIFFE_TYPE::DFT_OUT_DIFF,
         ) as LLVMValueRef;
         grad_fncs.push(grad_func);
         println!("TypeOf(grad_func) {:?}", LLVMTypeOf(grad_func));
@@ -376,9 +380,9 @@ pub fn build<T: AsRef<Path>>(entry_file: T, primary_fnc_names: Vec<String>) {
 
         let (module, context) = read_bc(&out_bc);
         let functions = load_primary_functions(module, primary_fnc_names.clone());
-        SafeEnzymeSetCLBool(true);
+        enzyme_set_clbool(true);
         let mut grad_fncs = generate_grad_function(context, functions);
-        SafeEnzymeSetCLBool(false);
+        enzyme_set_clbool(false);
         remove_U_symbols(module, context, &mut grad_fncs, primary_fnc_names.clone());
         localize_all_symbols(module);
         globalize_grad_symbols(module, primary_fnc_names);

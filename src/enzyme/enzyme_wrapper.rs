@@ -1,19 +1,16 @@
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
-include!(concat!(env!("OUT_DIR"), "/enzyme.rs"));
+// TODO: Verify wether to import the LLVM* from enzyme_sys, or from llvm-sys
+use enzyme_sys::{LLVMValueRef, CreateTypeAnalysis, CreateEnzymeLogic, EnzymeSetCLBool};
+use enzyme_sys::{EnzymeLogicRef, FreeEnzymeLogic, EnzymeCreatePrimalAndGradient, CFnTypeInfo, IntList, EnzymeTypeAnalysisRef, CConcreteType, CDerivativeMode};
+pub use enzyme_sys::{LLVMOpaqueContext, LLVMOpaqueValue, CDIFFE_TYPE};
 
-// TODO check where we should change the generated bindings and remove the mut. Apparently it's added everywhere (?), but enzyme handles quite a few args as const.
-
-
-pub mod tree;
-pub mod typeinfo;
+use super::enzyme_sys;
+use super::tree;
 
 use std::ffi::CString;
 use std::ptr;
 use std::os::raw::c_void;
 
-pub fn SafeEnzymeSetCLBool(val: bool) {
+pub fn enzyme_set_clbool(val: bool) {
     #[link(name = "Enzyme-13")]
     extern "C" {
         static mut EnzymePrint: c_void;
@@ -23,7 +20,7 @@ pub fn SafeEnzymeSetCLBool(val: bool) {
     }
 }
 
-pub fn createEmptyTypeAnalysis() -> EnzymeTypeAnalysisRef {
+pub fn create_empty_type_analysis() -> EnzymeTypeAnalysisRef {
     let platform: String = std::env::var("TARGET").unwrap();
     let tripple = CString::new(platform).unwrap().into_raw();
     unsafe {
@@ -90,6 +87,7 @@ impl Drop for AutoDiff {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,5 +141,4 @@ mod tests {
     }
     */
 }
-
-pub mod utils;
+*/
