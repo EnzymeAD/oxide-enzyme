@@ -40,7 +40,7 @@ impl AutoDiff {
         AutoDiff { logic_ref, type_analysis }
     }
 
-    pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE) -> LLVMValueRef {
+    pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, opt: bool) -> LLVMValueRef {
         let tree_tmp = tree::TypeTree::from_type(CConcreteType::DT_Float, context)
             .prepend(0);
 
@@ -75,7 +75,7 @@ impl AutoDiff {
                 ptr::null_mut(), dummy_type, // additional_arg, type info (return + args)
                 args_uncachable.as_mut_ptr(), 1, // unreachable arguments
                 ptr::null_mut(), // write augmented function to this
-                0, 1 // atomic_add, post_opt
+                0, opt as u8 // atomic_add, post_opt
             )
         }
     }

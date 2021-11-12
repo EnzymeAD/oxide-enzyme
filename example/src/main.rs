@@ -1,6 +1,5 @@
-fn f(x: f32) -> f32 {
-    x * x + 2.0
-}
+mod foo;
+use foo::f;
 
 /// Function f(x) = (x^2 + 2)^2 + 2x
 /// Derivative f'(x) = 4x^3 + 8x + 2
@@ -9,13 +8,6 @@ fn testx(x: f32) -> f32 {
     f(x) * f(x) + 2.0 * x
 }
 
-/*
-// for debug
-#[no_mangle]
-fn testx(x: f32) -> f32 {
-    (x*x +2.0) * (x*x+2.0) + 2.0 * x
-}
-*/
 
 #[no_mangle]
 fn test2(x: f32) -> f32 {

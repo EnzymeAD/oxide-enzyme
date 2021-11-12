@@ -15,7 +15,17 @@ mod enzyme;
 use enzyme::{create_empty_type_analysis, AutoDiff, enzyme_set_clbool};
 use enzyme::{LLVMOpaqueContext, LLVMOpaqueValue, CDIFFE_TYPE};
 
-
+#[allow(non_camel_case_types)]
+pub enum crate_type {
+    bin,
+    bin_with_name(String),
+    lib,
+    dylib,
+    staticlib,
+    cdylib,
+    rlib,
+    proc_macro,
+}
 
 /// Run a command and panic with error message if not succeeded
 fn run_and_printerror(command: &mut process::Command) {
@@ -35,14 +45,36 @@ fn run_and_printerror(command: &mut process::Command) {
 ///
 /// Compiles entry point into LLVM IR binary representation with debug informations. The artifact
 /// is used to generate the derivative function with Enzyme.
-fn compile_rs_to_bc(entry_file: &PathBuf, out_file: &PathBuf) {
+fn compile_rs_to_bc(crate_types: Vec<crate_type>, src_dir: &PathBuf, out_file: &PathBuf) {
+    assert_ne!(crate_types.len(), 0,
+    "Please specify at least one crate_type in your build.rs file. You probably want lib or bin.");
+
     let rustc_path = utils::get_rustc_binary_path();
     let mut cmd = process::Command::new(rustc_path);
+    cmd.current_dir(&src_dir);
+
+    for arg in crate_types {
+        let mut tmp: String = "--crate-type=".to_string();
+        tmp += match arg {
+            crate_type::bin => {cmd.arg("main.rs"); "bin"},
+            crate_type::bin_with_name(main_name) => {cmd.arg(main_name); "bin"},
+            crate_type::lib => "lib",
+            crate_type::dylib => "dylib",
+            crate_type::staticlib => "staticlib",
+            crate_type::cdylib => "cdylib",
+            crate_type::rlib => "rlib",
+            crate_type::proc_macro => "proc-macro",
+        };
+        cmd.arg(tmp);
+    }
+
+    let opt_level: &str = if cfg!(debug_assertions) { "0" } else { "2" };
+    let opt_args = ["-C", &("opt-level=".to_owned()+opt_level)];
+    cmd.args(&opt_args);
+
     cmd.args(&[
         "--emit=llvm-bc",
-        "-O",
-        &entry_file.to_str().unwrap(),
-        "-g",
+        "-g", // required for Enzyme's type analysis. TODO: optinally strip later
         "-o",
         &out_file.to_str().unwrap(),
     ]);
@@ -63,9 +95,17 @@ unsafe fn create_target_machine() -> LLVMTargetMachineRef {
     let triple = LLVMGetDefaultTargetTriple();
     let cpu = LLVMGetHostCPUName();
     let feature = LLVMGetHostCPUFeatures();
-    let opt_level = LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault; // TODO adjust
-    let reloc_mode = LLVMRelocMode::LLVMRelocDynamicNoPic;
-    let code_model = LLVMCodeModel::LLVMCodeModelDefault;
+
+    let opt_level = if cfg!(debug_assertions) {
+        LLVMCodeGenOptLevel::LLVMCodeGenLevelNone
+    } else {
+        LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive
+    };
+    
+    let reloc_mode = LLVMRelocMode::LLVMRelocPIC;
+
+    // https://doc.rust-lang.org/rustc/codegen-options/index.html#code-model
+    let code_model = LLVMCodeModel::LLVMCodeModelSmall;
 
     println!("CPU: {:?}", CStr::from_ptr(cpu).to_str().unwrap());
     println!("Triple: {:?}", CStr::from_ptr(triple).to_str().unwrap());
@@ -150,11 +190,13 @@ unsafe fn generate_grad_function(
     let auto_diff = AutoDiff::new(type_analysis);
 
     let mut grad_fncs = vec![];
+    let opt_grads = if cfg!(debug_assertions) { false } else { true };
     for &mut fnc in functions.iter_mut() {
         let grad_func: LLVMValueRef = auto_diff.create_primal_and_gradient(
             context as *mut LLVMOpaqueContext,
             fnc as *mut LLVMOpaqueValue,
             CDIFFE_TYPE::DFT_OUT_DIFF,
+            opt_grads
         ) as LLVMValueRef;
         grad_fncs.push(grad_func);
         println!("TypeOf(grad_func) {:?}", LLVMTypeOf(grad_func));
@@ -362,9 +404,8 @@ unsafe fn globalize_grad_symbols(module: LLVMModuleRef, primary_fnc_names: Vec<S
     }
 }
 
-pub fn build<T: AsRef<Path>>(entry_file: T, primary_fnc_names: Vec<String>) {
-    let mut entry_path = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    entry_path.push(entry_file.as_ref().file_name().unwrap());
+pub fn build(crate_types: Vec<crate_type>, primary_fnc_names: Vec<String>) {
+    let entry_path = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let out_obj = entry_path
         .clone()
         .with_file_name("result")
@@ -373,14 +414,19 @@ pub fn build<T: AsRef<Path>>(entry_file: T, primary_fnc_names: Vec<String>) {
         .clone()
         .with_file_name("result")
         .with_extension("bc");
+    
+    let manifest_dir_str: String = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("Couldn't find CARGO_MANIFEST_DIR. This env var should be set by cargo? Please report this error.")
+        .to_string();
+    let src_dir = PathBuf::from(manifest_dir_str).join("src");
 
-    compile_rs_to_bc(&entry_file.as_ref().to_path_buf(), &out_bc);
+    compile_rs_to_bc(crate_types, &src_dir, &out_bc);
 
     unsafe {
 
         let (module, context) = read_bc(&out_bc);
         let functions = load_primary_functions(module, primary_fnc_names.clone());
-        enzyme_set_clbool(true);
+        enzyme_set_clbool(cfg!(debug_assertions)); // print generated functions in debug mode
         let mut grad_fncs = generate_grad_function(context, functions);
         enzyme_set_clbool(false);
         remove_U_symbols(module, context, &mut grad_fncs, primary_fnc_names.clone());
