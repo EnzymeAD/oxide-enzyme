@@ -1,11 +1,9 @@
-# Oxide-Enzyme
+# <img src="https://enzyme.mit.edu/logo.svg" width="75" align=left> The Enzyme High-Performance Automatic Differentiator of LLVM
 
-This is a proof-of-concept work where we are trying to integrate [Enzyme](https://enzyme.mit.edu/Installation/) into Rust.  
-Previous attempts were made at https://github.com/tiberiusferreira/oxide-enzyme and https://github.com/bytesnake/oxide-enzyme/
-It's WIP, so please don't use it for any serious kind of work.
+This is a package containing a Rust frontend for [Enzyme](https://github.com/wsmoses/enzyme). This is very much a work in progress and bug reports/discussion is greatly appreciated!
+
+Enzyme is a plugin that performs automatic differentiation (AD) of statically analyzable LLVM. It is highly-efficient and its ability perform AD on optimized code allows Enzyme to meet or exceed the performance of state-of-the-art AD tools.
   
-# Enzyme
-
 
 # Usage
 First you have to get an adequate rustc/llvm/enzyme build here: [enzyme\_build](https://github.com/ZuseZ4/enzyme\_build).  
@@ -23,17 +21,38 @@ inside of your enzyme and llvm build directory.
 Afterwards you can execute the following lines in `oxide-enzyme/example`
 > $ cargo +enzyme run --release
 
-# Working
-Thanks to @cychen2021 we are supporting the following [types](https://doc.rust-lang.org/reference/types.html):
-> Scalars  
-> Sequence types: Tuple, Array, Slice*  
-> User-defined types: Struct, Enum  
-> Pointer types: References, Raw pointers  
+# Supported types
+- Scalars  
+- Structs, Unions  
+- Tuple, Array, Vec  
+- Box, Reference, Raw pointer  
 
-*Slices should arrive during the next days.  
-There is no fundamental issue with Function types, Trait types and Function pointers,  
-we just haven't finished support yet.
+We are working on adding support for trait objects, slices and enums.
+
   
 # FAQ  
 - Q: How about Windows / Mac?
-- A: Should work soon, we need to fix some paths and test it.
+- A: It might work, please let us know if you had a chance to test it.
+
+  
+# Further Information
+More information on installing and using Enzyme directly (not through Rust) can be found on our website: [https://enzyme.mit.edu](https://enzyme.mit.edu).
+
+To get involved or if you have questions, please join our [mailing list](https://groups.google.com/d/forum/enzyme-dev).
+
+If using this code in an academic setting, please cite the following paper to appear in NeurIPS 2020
+
+```
+@inproceedings{NEURIPS2020_9332c513,
+ author = {Moses, William and Churavy, Valentin},
+ booktitle = {Advances in Neural Information Processing Systems},
+ editor = {H. Larochelle and M. Ranzato and R. Hadsell and M. F. Balcan and H. Lin},
+ pages = {12472--12485},
+ publisher = {Curran Associates, Inc.},
+ title = {Instead of Rewriting Foreign Code for Machine Learning, Automatically Synthesize Fast Gradients},
+ url = {https://proceedings.neurips.cc/paper/2020/file/9332c513ef44b682e9347822c2e457ac-Paper.pdf},
+ volume = {33},
+ year = {2020}
+}
+```
+
