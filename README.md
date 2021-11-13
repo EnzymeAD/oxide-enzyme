@@ -17,16 +17,27 @@ Adding Generics to your types or implementing traits is already working fine.
 # Setup
 First you have to get an adequate rustc/llvm/enzyme build here: [enzyme\_build](https://github.com/ZuseZ4/enzyme\_build).  
 Afterwards for your convenience you should export this path for LLVM_SYS
-> $ export LLVM_SYS_130_PREFIX=$HOME/.cache/enzyme/rustc-1.56.0-src/build/x86_64-unknown-linux-gnu/llvm  
+
+```bash
+$ export LLVM_SYS_130_PREFIX=$HOME/.config/enzyme/rustc-1.56.0-src/build/x86_64-unknown-linux-gnu/llvm  
+```
 
 and tell Enzyme about your library locations:  
-> $ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.cache/enzyme/Enzyme-0.0.20/enzyme/build/Enzyme:$HOME/.cache/enzyme/rustc-1.56.0-src/build/x86_64-unknown-linux-gnu/llvm/build/lib/  
+```bash
+$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.config/enzyme/Enzyme-0.0.20/enzyme/build/Enzyme:$HOME/.config/enzyme/rustc-1.56.0-src/build/x86_64-unknown-linux-gnu/llvm/build/lib/  
+```
   
 As an alternative you can also run   
-> $ ninja install  
+```bash
+$ ninja install  
+```
 
 inside of your enzyme and llvm build directory.
 
+Afterwards you can execute the following lines in `oxide-enzyme/example`
+```bash
+$ cargo +enzyme run --release
+```
 
 
 # Compilation
