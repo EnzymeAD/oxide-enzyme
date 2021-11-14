@@ -49,8 +49,11 @@ fn compile_rs_to_bc(crate_types: Vec<crate_type>, src_dir: &PathBuf, out_file: &
     assert_ne!(crate_types.len(), 0,
     "Please specify at least one crate_type in your build.rs file. You probably want lib or bin.");
 
-    let rustc_path = utils::get_rustc_binary_path();
-    let mut cmd = process::Command::new(rustc_path);
+    let _rustc_path = utils::get_rustc_binary_path();
+    //let mut cmd = process::Command::new(rustc_path); // doesn't handle dependencies
+    let mut cmd = process::Command::new("cargo");
+    cmd.arg("+enzyme");
+    cmd.arg("rustc");
     cmd.current_dir(&src_dir);
 
     for arg in crate_types {
@@ -405,7 +408,7 @@ unsafe fn globalize_grad_symbols(module: LLVMModuleRef, primary_fnc_names: Vec<S
 }
 
 pub fn build(crate_types: Vec<crate_type>, primary_fnc_names: Vec<String>) {
-    let entry_path = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let entry_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let out_obj = entry_path
         .clone()
         .with_file_name("result")
@@ -415,7 +418,7 @@ pub fn build(crate_types: Vec<crate_type>, primary_fnc_names: Vec<String>) {
         .with_file_name("result")
         .with_extension("bc");
     
-    let manifest_dir_str: String = std::env::var("CARGO_MANIFEST_DIR")
+    let manifest_dir_str: String = env::var("CARGO_MANIFEST_DIR")
         .expect("Couldn't find CARGO_MANIFEST_DIR. This env var should be set by cargo? Please report this error.")
         .to_string();
     let src_dir = PathBuf::from(manifest_dir_str).join("src");

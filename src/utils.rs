@@ -5,9 +5,9 @@ const RUSTC_VER: &str = "1.56.0";
 
 
 pub fn get_rustc_binary_path() -> PathBuf {
-    let cfg_dir = dirs::config_dir().expect("Enzyme needs access to your cfg dir.");
+    let cache_dir = dirs::cache_dir().expect("Enzyme needs access to your cache dir.");
     let platform = std::env::var("TARGET").unwrap();
-    let rustc_path = cfg_dir
+    let rustc_path = cache_dir
         .join("enzyme")
         .join("rustc-".to_owned() + RUSTC_VER + "-src")
         .join("build")

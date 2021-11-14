@@ -7,7 +7,7 @@ const LLVM_VER: &str = "13";
 
 fn choose_library() {
     let platform = std::env::var("TARGET").unwrap();
-    let enzyme_basedir = dirs::config_dir().unwrap().join("enzyme");
+    let enzyme_basedir = dirs::cache_dir().unwrap().join("enzyme");
     let enzyme_path = enzyme_basedir.join("Enzyme-".to_owned() + ENZYME_VER).join("enzyme").join("build").join("Enzyme");
     let llvm_path   = enzyme_basedir.join("rustc-".to_owned() + RUSTC_VER + "-src").join("build").join(&platform).join("llvm").join("lib");
     let enzyme_lib  = "Enzyme-".to_owned() + LLVM_VER;
@@ -21,8 +21,8 @@ fn choose_library() {
 }
 
 fn copy_bindings() {
-    let cfg_dir = dirs::config_dir().expect("Enzyme needs access to your cfg dir.");
-    let src = cfg_dir.join("enzyme").join("enzyme.rs");
+    let cache_dir = dirs::cache_dir().expect("Enzyme needs access to your cache dir.");
+    let src = cache_dir.join("enzyme").join("enzyme.rs");
     let dst = Path::new(&std::env::var("OUT_DIR").unwrap()).join("enzyme.rs");
     if !src.exists() { panic!("please first generate the bindings"); } 
     std::fs::copy(src,dst).expect("Copying over the bindings should never fail. Please submit a Bug report");
