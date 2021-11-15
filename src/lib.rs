@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString};
 use std::path::{Path, PathBuf};
-use std::{env, process, ptr};
+use std::{fs, env, process, ptr};
 
 use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyFunction, LLVMVerifyModule};
 use llvm_sys::core::*;
@@ -9,6 +9,8 @@ use llvm_sys::prelude::*;
 use llvm_sys::target::*;
 use llvm_sys::target_machine::*;
 use llvm_sys::LLVMLinkage;
+
+use glob::glob;
 
 mod utils;
 mod enzyme;
@@ -46,7 +48,7 @@ fn run_and_printerror(command: &mut process::Command) {
 /// Compiles entry point into LLVM IR binary representation with debug informations. The artifact
 /// is used to generate the derivative function with Enzyme.
 fn compile_rs_to_bc(crate_types: Vec<crate_type>, src_dir: &PathBuf, out_file: &PathBuf) {
-    assert_ne!(crate_types.len(), 0,
+    assert!(crate_types.len() > 0,
     "Please specify at least one crate_type in your build.rs file. You probably want lib or bin.");
 
     let _rustc_path = utils::get_rustc_binary_path();
@@ -407,26 +409,19 @@ unsafe fn globalize_grad_symbols(module: LLVMModuleRef, primary_fnc_names: Vec<S
     }
 }
 
-pub fn build(crate_types: Vec<crate_type>, primary_fnc_names: Vec<String>) {
+fn build_archive(primary_fnc_names: Vec<String>) {
     let entry_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let out_obj = entry_path
         .clone()
         .with_file_name("result")
         .with_extension("o");
-    let out_bc = entry_path
-        .clone()
-        .with_file_name("result")
-        .with_extension("bc");
     
-    let manifest_dir_str: String = env::var("CARGO_MANIFEST_DIR")
-        .expect("Couldn't find CARGO_MANIFEST_DIR. This env var should be set by cargo? Please report this error.")
-        .to_string();
-    let src_dir = PathBuf::from(manifest_dir_str).join("src");
-
-    compile_rs_to_bc(crate_types, &src_dir, &out_bc);
+    let out_bc = match find_bc_file() {
+        None => panic!("Didn't found bc file! \n You probably missed the first run. Please read the doc or use the provided cargo-wrapper."),
+        Some(path) => path,
+    };
 
     unsafe {
-
         let (module, context) = read_bc(&out_bc);
         let functions = load_primary_functions(module, primary_fnc_names.clone());
         enzyme_set_clbool(cfg!(debug_assertions)); // print generated functions in debug mode
@@ -440,4 +435,40 @@ pub fn build(crate_types: Vec<crate_type>, primary_fnc_names: Vec<String>) {
 
     // compile to static archive
     cc::Build::new().object(out_obj).compile("GradFunc");
+}
+
+fn find_bc_file() -> Option<PathBuf>{
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let search_basedir = out_path.parent().unwrap().parent().unwrap().parent().unwrap();
+    let mut bc_path = PathBuf::new();
+    let crate_name: String = env::var("CARGO_PKG_NAME").unwrap();
+    let search_term = search_basedir.join("deps").join(crate_name + &"-*.bc");
+    let search_results = glob(search_term.to_str().unwrap()).expect("Failed to read glob pattern");
+    for entry in search_results {
+        if let Ok(path) = entry {
+            bc_path = path;
+        }
+    }
+    if PathBuf::new() == bc_path {
+        return None;
+    }
+    return Some(bc_path);
+}
+
+pub fn build(primary_fnc_names: Vec<String>) {
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let control_file = out_path.join("enzyme-done");
+
+    if Path::exists(&control_file) {
+        dbg!("second call"); // now we create and link the archive from the .bc file
+        fs::remove_file(&control_file).unwrap();
+        build_archive(primary_fnc_names);
+        println!("cargo:rustc-link-lib=static=GradFunc"); // cc does that already afaik
+    } else {
+        // let flags: String = env::var("CARGO_CFG_EMIT=llvm-bc").unwrap(); 
+        // TODO: implement such a check
+        // 
+        dbg!("first call"); // now cargo/rustc will generate the .bc file
+        fs::File::create(control_file).unwrap();
+    }
 }

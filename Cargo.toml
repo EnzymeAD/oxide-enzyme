@@ -9,6 +9,7 @@ edition = "2021"
 cc = "1.0"
 llvm-sys = { version = "130.0", features = ["no-llvm-linking"] }
 dirs = "3.0"
+glob = "0.3"
 
 [build-dependencies]
 dirs = "3.0"
