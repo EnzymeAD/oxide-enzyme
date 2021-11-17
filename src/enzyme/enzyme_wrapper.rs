@@ -41,16 +41,16 @@ impl AutoDiff {
     }
 
     pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, opt: bool) -> LLVMValueRef {
-        let tree_tmp = tree::TypeTree::from_type(CConcreteType::DT_Float, context)
-            .prepend(0);
+        //let tree_tmp = tree::TypeTree::from_type(CConcreteType::DT_Float, context).prepend(0);
+        let tree_tmp = tree::TypeTree::new();
 
         let mut args_tree = vec![tree_tmp.inner];
 
         let mut args_activity = vec![CDIFFE_TYPE::DFT_OUT_DIFF];
         let mut args_uncachable = vec![0];
 
-        let ret = tree::TypeTree::from_type(CConcreteType::DT_Float, context)
-            .prepend(0);
+        //let ret = tree::TypeTree::from_type(CConcreteType::DT_Float, context).prepend(0);
+        let ret = tree::TypeTree::new();
 
         let kv_tmp = IntList {
             data: ptr::null_mut(),

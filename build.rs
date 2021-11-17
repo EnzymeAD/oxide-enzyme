@@ -1,7 +1,7 @@
 use std::path::Path;
 use dirs;
 
-const ENZYME_VER: &str = "0.0.20";
+const ENZYME_VER: &str = "0.0.21-rust";
 const RUSTC_VER: &str = "1.56.0";
 const LLVM_VER: &str = "13";
 
