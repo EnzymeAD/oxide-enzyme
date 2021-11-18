@@ -61,7 +61,7 @@ impl AutoDiff {
         let mut args_tree = vec![tree_tmp.inner];
 
         //let mut args_activity = vec![CDIFFE_TYPE::DFT_OUT_DIFF];
-        let mut args_uncachable = vec![0];
+        let mut args_uncachable = vec![0;args_activity.len()];
 
         //let ret = tree::TypeTree::from_type(CConcreteType::DT_Float, context).prepend(0);
         let ret = TypeTree::new();
