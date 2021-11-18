@@ -1,5 +1,5 @@
-use oxide_enzyme::crate_type;
-use std::path::{Path, PathBuf};
+use oxide_enzyme::{FncInfo, CDIFFE_TYPE};
+use std::path::PathBuf;
 use std::env;
 
 fn main() {
@@ -11,7 +11,9 @@ fn main() {
     let check_path = entry_path.join("enzyme-done");
     println!("cargo:rerun-if-changed={}", check_path.display());
 
+    let fnc_x = FncInfo::new("testx",  vec![CDIFFE_TYPE::DFT_OUT_DIFF]);
+    let fnc_2 = FncInfo::new("test2",  vec![CDIFFE_TYPE::DFT_OUT_DIFF]);
     oxide_enzyme::build(
-        vec!["testx".to_owned(),"test2".to_owned() ]
+        vec![fnc_x, fnc_2]
     );
 }

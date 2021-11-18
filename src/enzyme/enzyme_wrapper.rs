@@ -1,10 +1,10 @@
 // TODO: Verify wether to import the LLVM* from enzyme_sys, or from llvm-sys
 use enzyme_sys::{LLVMValueRef, CreateTypeAnalysis, CreateEnzymeLogic, EnzymeSetCLBool};
-use enzyme_sys::{EnzymeLogicRef, FreeEnzymeLogic, EnzymeCreatePrimalAndGradient, CFnTypeInfo, IntList, EnzymeTypeAnalysisRef, CConcreteType, CDerivativeMode};
+use enzyme_sys::{EnzymeLogicRef, FreeEnzymeLogic, EnzymeCreatePrimalAndGradient, CFnTypeInfo, IntList, EnzymeTypeAnalysisRef, CDerivativeMode};
 pub use enzyme_sys::{LLVMOpaqueContext, LLVMOpaqueValue, CDIFFE_TYPE};
 
 use super::enzyme_sys;
-use super::tree;
+use super::tree::TypeTree;
 
 use std::ffi::CString;
 use std::ptr;
@@ -19,6 +19,20 @@ pub fn enzyme_set_clbool(val: bool) {
         EnzymeSetCLBool(std::ptr::addr_of_mut!(EnzymePrint), val as u8);
     }
 }
+
+/// Should be given by Enzyme users to declare how arguments shall be handled
+#[derive(Clone)]
+pub struct FncInfo {
+    pub name: String, // What's the (unmangled) name of the Rust function to differentiate?
+    pub activity: Vec<CDIFFE_TYPE>, // How should it's arguments be treated?
+}
+
+impl FncInfo {
+    pub fn new(name: &str, activity: Vec<CDIFFE_TYPE>) -> FncInfo {
+        FncInfo { name: name.to_string(), activity }        
+    }
+}
+
 
 pub fn create_empty_type_analysis() -> EnzymeTypeAnalysisRef {
     let platform: String = std::env::var("TARGET").unwrap();
@@ -40,17 +54,17 @@ impl AutoDiff {
         AutoDiff { logic_ref, type_analysis }
     }
 
-    pub fn create_primal_and_gradient(&self, context: *mut LLVMOpaqueContext, fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, opt: bool) -> LLVMValueRef {
-        //let tree_tmp = tree::TypeTree::from_type(CConcreteType::DT_Float, context).prepend(0);
-        let tree_tmp = tree::TypeTree::new();
+    pub fn create_primal_and_gradient(&self, args_activity: &mut [CDIFFE_TYPE], fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, opt: bool) -> LLVMValueRef {
+        //let tree_tmp = TypeTree::from_type(CConcreteType::DT_Float, context).prepend(0);
+        let tree_tmp = TypeTree::new();
 
         let mut args_tree = vec![tree_tmp.inner];
 
-        let mut args_activity = vec![CDIFFE_TYPE::DFT_OUT_DIFF];
+        //let mut args_activity = vec![CDIFFE_TYPE::DFT_OUT_DIFF];
         let mut args_uncachable = vec![0];
 
         //let ret = tree::TypeTree::from_type(CConcreteType::DT_Float, context).prepend(0);
-        let ret = tree::TypeTree::new();
+        let ret = TypeTree::new();
 
         let kv_tmp = IntList {
             data: ptr::null_mut(),

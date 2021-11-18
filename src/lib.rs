@@ -15,7 +15,8 @@ use glob::glob;
 mod utils;
 mod enzyme;
 use enzyme::{create_empty_type_analysis, AutoDiff, enzyme_set_clbool};
-use enzyme::{LLVMOpaqueContext, LLVMOpaqueValue, CDIFFE_TYPE};
+use enzyme::LLVMOpaqueValue;
+pub use enzyme::{CDIFFE_TYPE, FncInfo};
 
 #[allow(non_camel_case_types)]
 pub enum crate_type {
@@ -172,11 +173,11 @@ unsafe fn load_primary_functions(
     module: LLVMModuleRef,
     fnc_names: Vec<String>,
 ) -> Vec<LLVMValueRef> {
-    let mut functions = vec![];
-    for fnc in &fnc_names {
-        let fnc_name = CString::new((*fnc).clone()).unwrap();
-        let llvm_fnc = LLVMGetNamedFunction(module, fnc_name.as_ptr());
-        assert_ne!(llvm_fnc as usize, 0, "couldn't find function {}", fnc);
+    let mut functions: Vec<LLVMValueRef> = vec![];
+    for fnc_name in &fnc_names {
+        let c_name = CString::new(fnc_name.clone()).unwrap();
+        let llvm_fnc = LLVMGetNamedFunction(module, c_name.as_ptr());
+        assert_ne!(llvm_fnc as usize, 0, "couldn't find {}", fnc_name);
         functions.push(llvm_fnc);
     }
     assert_eq!(
@@ -188,17 +189,17 @@ unsafe fn load_primary_functions(
 }
 
 unsafe fn generate_grad_function(
-    context: LLVMContextRef,
     mut functions: Vec<LLVMValueRef>,
+    mut fnc_activities: Vec<Vec<CDIFFE_TYPE>>,
 ) -> Vec<LLVMValueRef> {
     let type_analysis = create_empty_type_analysis();
     let auto_diff = AutoDiff::new(type_analysis);
 
     let mut grad_fncs = vec![];
     let opt_grads = if cfg!(debug_assertions) { false } else { true };
-    for &mut fnc in functions.iter_mut() {
+    for (&mut fnc, mut fnc_activity) in functions.iter_mut().zip(fnc_activities.iter_mut()) {
         let grad_func: LLVMValueRef = auto_diff.create_primal_and_gradient(
-            context as *mut LLVMOpaqueContext,
+            &mut fnc_activity,
             fnc as *mut LLVMOpaqueValue,
             CDIFFE_TYPE::DFT_OUT_DIFF,
             opt_grads
@@ -299,10 +300,10 @@ unsafe fn remove_U_symbols(
     module: LLVMModuleRef,
     context: LLVMContextRef,
     grad_functions: &mut [LLVMValueRef],
-    primary_fnc_names: Vec<String>,
+    primary_fnc_infos: Vec<String>,
 ) {
     for i in 0..grad_functions.len() {
-        let name = &primary_fnc_names[i];
+        let name = &primary_fnc_infos[i];
 
         // rename grad fnc to tmp name (to not hide equally named undef symbols anymore)
         let tmp = "tmp_diffe".to_owned() + &name;
@@ -395,8 +396,8 @@ unsafe fn localize_all_symbols(module: LLVMModuleRef) {
         symbol = LLVMGetNextFunction(symbol);
     }
 }
-unsafe fn globalize_grad_symbols(module: LLVMModuleRef, primary_fnc_names: Vec<String>) {
-    for primary_name in primary_fnc_names {
+unsafe fn globalize_grad_symbols(module: LLVMModuleRef, primary_fnc_infos: Vec<String>) {
+    for primary_name in primary_fnc_infos {
         let grad_fnc_name = "diffe".to_owned() + &primary_name;
         let c_grad_fnc_name = CString::new(grad_fnc_name.clone()).unwrap();
         let grad_fnc = LLVMGetNamedFunction(module, c_grad_fnc_name.as_ptr());
@@ -409,7 +410,7 @@ unsafe fn globalize_grad_symbols(module: LLVMModuleRef, primary_fnc_names: Vec<S
     }
 }
 
-fn build_archive(primary_fnc_names: Vec<String>) {
+fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     let entry_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let out_obj = entry_path
         .clone()
@@ -421,15 +422,22 @@ fn build_archive(primary_fnc_names: Vec<String>) {
         Some(path) => path,
     };
 
+    // Most functions will only require one, so let's split it up.
+    let (mut primary_names, mut primary_activities) = (vec![], vec![]);
+    for info in primary_fnc_infos {
+        primary_names.push(info.name);
+        primary_activities.push(info.activity);
+    }
+
     unsafe {
         let (module, context) = read_bc(&out_bc);
-        let functions = load_primary_functions(module, primary_fnc_names.clone());
+        let functions = load_primary_functions(module, primary_names.clone());
         enzyme_set_clbool(cfg!(debug_assertions)); // print generated functions in debug mode
-        let mut grad_fncs = generate_grad_function(context, functions);
+        let mut grad_fncs = generate_grad_function(functions, primary_activities);
         enzyme_set_clbool(false);
-        remove_U_symbols(module, context, &mut grad_fncs, primary_fnc_names.clone());
+        remove_U_symbols(module, context, &mut grad_fncs, primary_names.clone());
         localize_all_symbols(module);
-        globalize_grad_symbols(module, primary_fnc_names);
+        globalize_grad_symbols(module, primary_names);
         dumb_module_to_obj(module, context, &out_obj);
     };
 
@@ -455,14 +463,14 @@ fn find_bc_file() -> Option<PathBuf>{
     return Some(bc_path);
 }
 
-pub fn build(primary_fnc_names: Vec<String>) {
+pub fn build(primary_functions: Vec<FncInfo>) {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let control_file = out_path.join("enzyme-done");
 
     if Path::exists(&control_file) {
         dbg!("second call"); // now we create and link the archive from the .bc file
         fs::remove_file(&control_file).unwrap();
-        build_archive(primary_fnc_names);
+        build_archive(primary_functions);
         println!("cargo:rustc-link-lib=static=GradFunc"); // cc does that already afaik
     } else {
         // let flags: String = env::var("CARGO_CFG_EMIT=llvm-bc").unwrap(); 
