@@ -133,6 +133,7 @@ unsafe fn load_primary_functions(
 
 unsafe fn generate_grad_function(
     mut functions: Vec<LLVMValueRef>,
+    grad_names: Vec<String>,
     mut param_infos: Vec<ParamInfos>,
 ) -> Vec<LLVMValueRef> {
     let type_analysis = create_empty_type_analysis();
@@ -140,7 +141,7 @@ unsafe fn generate_grad_function(
 
     let mut grad_fncs = vec![];
     let opt_grads = if cfg!(debug_assertions) { false } else { true };
-    for (&mut fnc, param_info) in functions.iter_mut().zip(param_infos.iter_mut()) {
+    for (&mut fnc, (param_info, grad_name)) in functions.iter_mut().zip(param_infos.iter_mut().zip(grad_names.iter())) {
         let grad_func: LLVMValueRef = auto_diff.create_primal_and_gradient(
             fnc as *mut LLVMOpaqueValue,
             &mut param_info.input_activity,
@@ -148,12 +149,18 @@ unsafe fn generate_grad_function(
             opt_grads
         ) as LLVMValueRef;
         grad_fncs.push(grad_func);
-        dbg!(LLVMTypeOf(grad_func));
+        let llvm_grad_fnc_type = LLVMTypeOf(grad_func);
+        let grad_fnc_type = CString::from_raw(LLVMPrintTypeToString(llvm_grad_fnc_type));
+        dbg!(grad_fnc_type);
         dbg!(LLVMCountParams(grad_func));
+        /*
         #[allow(deprecated)]
-        let name = LLVMGetValueName(grad_func);
-        dbg!(name);
+        let llvm_name = LLVMGetValueName(grad_func);
+        let name = CString::from_raw(llvm_name as *mut i8);
+        dbg!(name);*/
+        dbg!(grad_name);
         dbg!(grad_func);
+        dbg!();
     }
     assert_eq!(
         grad_fncs.len(),
@@ -238,44 +245,80 @@ unsafe fn extract_return_type(
     new_fnc
 }
 
+fn print_ffi_type(module: LLVMModuleRef, ffi_names: Vec<String>) {
+    unsafe {
+        for name in ffi_names {
+            let c_fnc_name = CString::new(name.clone()).unwrap();
+            let u_fnc: LLVMValueRef = LLVMGetNamedFunction(module, c_fnc_name.as_ptr()); // get the U(ndefined) fnc symbol
+            assert_ne!(
+                u_fnc as usize, 0,
+                "couldn't get undef symbol {}",
+                name
+            );
+
+            let u_type: LLVMTypeRef = LLVMTypeOf(u_fnc);
+            let u_return_type = LLVMGetReturnType(LLVMGetElementType(u_type));
+
+            let u_type_string = CString::from_raw(LLVMPrintTypeToString(u_type.clone()));
+            let u_ret_type_string = CString::from_raw(LLVMPrintTypeToString(u_return_type.clone()));
+
+            dbg!("Some type missmatch happened for ".to_owned()+&name);
+            dbg!(u_type_string); 
+            dbg!(u_ret_type_string);
+            dbg!();
+        }
+    }
+}
+
 #[allow(non_snake_case)]
 unsafe fn remove_U_symbols(
     module: LLVMModuleRef,
     context: LLVMContextRef,
     grad_functions: &mut [LLVMValueRef],
     grad_names: Vec<String>,
-    primary_fnc_infos: Vec<String>,
+    primary_names: Vec<String>,
 ) {
     for i in 0..grad_functions.len() {
 
+        let grad_name = &grad_names[i];
+
         // rename grad fnc to tmp name (to not hide equally named undef symbols anymore)
-        let name = &primary_fnc_infos[i];
-        let tmp = "tmp_diffe".to_owned() + &name;
+        let tmp = "tmp_diffe".to_owned() + &grad_name;
         let c_tmp = CString::new(tmp.clone()).unwrap();
         LLVMSetValueName2(grad_functions[i], c_tmp.as_ptr(), tmp.len() as usize);
 
         // access undef symbols
-        let new_fnc_name = &grad_names[i];
-        let c_fnc_name = CString::new(new_fnc_name.clone()).unwrap();
+        let c_fnc_name = CString::new(grad_name.clone()).unwrap();
         let u_fnc: LLVMValueRef = LLVMGetNamedFunction(module, c_fnc_name.as_ptr()); // get the U(ndefined) fnc symbol
         assert_ne!(
             u_fnc as usize, 0,
             "couldn't get undef symbol {}",
-            new_fnc_name
+            grad_name
         );
 
         let u_type: LLVMTypeRef = LLVMTypeOf(u_fnc);
         let f_type: LLVMTypeRef = LLVMTypeOf(grad_functions[i]);
-        let u_type_string = CString::from_raw(LLVMPrintTypeToString(u_type.clone()));
-        let f_type_string = CString::from_raw(LLVMPrintTypeToString(f_type.clone()));
         let u_return_type = LLVMGetReturnType(LLVMGetElementType(u_type));
         let f_return_type = LLVMGetReturnType(LLVMGetElementType(f_type));
 
+        let u_type_string = CString::from_raw(LLVMPrintTypeToString(u_type.clone()));
+        let f_type_string = CString::from_raw(LLVMPrintTypeToString(f_type.clone()));
+        let u_ret_type_string = CString::from_raw(LLVMPrintTypeToString(u_return_type.clone()));
+        let f_ret_type_string = CString::from_raw(LLVMPrintTypeToString(f_return_type.clone()));
+
         if u_type != f_type {
+            dbg!("Some type missmatch happened for ".to_owned()+&grad_names[i]);
+            dbg!(u_type_string); 
+            dbg!(f_type_string);
+            dbg!(u_ret_type_string);
+            dbg!(f_ret_type_string);
+            dbg!();
             // Type mismatch which we should fix
+            /*
             if u_return_type == f_return_type {
                 panic!("Return types match. However a different, unhandled missmatch occured: u: {:?}, f: {:?}", u_type_string, f_type_string);
             }
+            */
 
             /*
             // TODO: What if return type isn't a struct? e.g. by using a different enzyme style
@@ -294,7 +337,7 @@ unsafe fn remove_U_symbols(
                 grad_functions[i],
                 u_type,
                 f_type,
-                new_fnc_name.clone(),
+                grad_name.clone(),
             );
         }
 
@@ -304,7 +347,7 @@ unsafe fn remove_U_symbols(
         LLVMSetValueName2(
             grad_functions[i],
             c_fnc_name.as_ptr(),
-            new_fnc_name.len() as usize,
+            grad_name.len() as usize,
         );
     }
 }
@@ -378,11 +421,14 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
         parameter_informations.push(info.params);
     }
 
+
     unsafe {
         let (module, context) = read_bc(&out_bc);
+        print_ffi_type(module, grad_names.clone());
         let functions = load_primary_functions(module, primary_names.clone());
         enzyme_set_clbool(cfg!(debug_assertions)); // print generated functions in debug mode
-        let mut grad_fncs = generate_grad_function(functions, parameter_informations);
+        enzyme_set_clbool(false); // print generated functions in debug mode
+        let mut grad_fncs = generate_grad_function(functions, grad_names.clone(), parameter_informations);
         enzyme_set_clbool(false);
         remove_U_symbols(module, context, &mut grad_fncs, grad_names.clone(), primary_names.clone());
         localize_all_symbols(module);
@@ -419,6 +465,7 @@ pub fn build(primary_functions: Vec<FncInfo>) {
 
     if Path::exists(&control_file) {
         dbg!("second call"); // now we create and link the archive from the .bc file
+        dbg!();
         fs::remove_file(&control_file).unwrap();
         build_archive(primary_functions);
         println!("cargo:rustc-link-lib=static=GradFunc"); // cc does that already afaik
