@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString};
 use std::path::{Path, PathBuf};
-use std::{fs, env, process, ptr};
+use std::{fs, env, ptr};
 
 use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyFunction, LLVMVerifyModule};
 use llvm_sys::core::*;
@@ -12,10 +12,9 @@ use llvm_sys::LLVMLinkage;
 
 use glob::glob;
 
-mod utils;
 mod enzyme;
 use enzyme::{create_empty_type_analysis, AutoDiff, enzyme_set_clbool};
-use enzyme::LLVMOpaqueValue;
+use enzyme::{LLVMOpaqueValue, ParamInfos};
 pub use enzyme::{CDIFFE_TYPE, FncInfo};
 
 #[allow(non_camel_case_types)]
@@ -30,63 +29,7 @@ pub enum crate_type {
     proc_macro,
 }
 
-/// Run a command and panic with error message if not succeeded
-fn run_and_printerror(command: &mut process::Command) {
-    match command.status() {
-        Ok(status) => {
-            if !status.success() {
-                panic!("Failed: `{:?}` ({})", command, status);
-            }
-        }
-        Err(error) => {
-            panic!("Failed: `{:?}` ({})", command, error);
-        }
-    }
-}
 
-/// Generate LLVM BC artifact
-///
-/// Compiles entry point into LLVM IR binary representation with debug informations. The artifact
-/// is used to generate the derivative function with Enzyme.
-fn compile_rs_to_bc(crate_types: Vec<crate_type>, src_dir: &PathBuf, out_file: &PathBuf) {
-    assert!(crate_types.len() > 0,
-    "Please specify at least one crate_type in your build.rs file. You probably want lib or bin.");
-
-    let _rustc_path = utils::get_rustc_binary_path();
-    //let mut cmd = process::Command::new(rustc_path); // doesn't handle dependencies
-    let mut cmd = process::Command::new("cargo");
-    cmd.arg("+enzyme");
-    cmd.arg("rustc");
-    cmd.current_dir(&src_dir);
-
-    for arg in crate_types {
-        let mut tmp: String = "--crate-type=".to_string();
-        tmp += match arg {
-            crate_type::bin => {cmd.arg("main.rs"); "bin"},
-            crate_type::bin_with_name(main_name) => {cmd.arg(main_name); "bin"},
-            crate_type::lib => "lib",
-            crate_type::dylib => "dylib",
-            crate_type::staticlib => "staticlib",
-            crate_type::cdylib => "cdylib",
-            crate_type::rlib => "rlib",
-            crate_type::proc_macro => "proc-macro",
-        };
-        cmd.arg(tmp);
-    }
-
-    let opt_level: &str = if cfg!(debug_assertions) { "0" } else { "2" };
-    let opt_args = ["-C", &("opt-level=".to_owned()+opt_level)];
-    cmd.args(&opt_args);
-
-    cmd.args(&[
-        "--emit=llvm-bc",
-        "-g", // required for Enzyme's type analysis. TODO: optinally strip later
-        "-o",
-        &out_file.to_str().unwrap(),
-    ]);
-
-    run_and_printerror(&mut cmd);
-}
 
 /// Create target machine with default relocation/optimization/code model
 unsafe fn create_target_machine() -> LLVMTargetMachineRef {
@@ -190,27 +133,27 @@ unsafe fn load_primary_functions(
 
 unsafe fn generate_grad_function(
     mut functions: Vec<LLVMValueRef>,
-    mut fnc_activities: Vec<Vec<CDIFFE_TYPE>>,
+    mut param_infos: Vec<ParamInfos>,
 ) -> Vec<LLVMValueRef> {
     let type_analysis = create_empty_type_analysis();
     let auto_diff = AutoDiff::new(type_analysis);
 
     let mut grad_fncs = vec![];
     let opt_grads = if cfg!(debug_assertions) { false } else { true };
-    for (&mut fnc, mut fnc_activity) in functions.iter_mut().zip(fnc_activities.iter_mut()) {
+    for (&mut fnc, param_info) in functions.iter_mut().zip(param_infos.iter_mut()) {
         let grad_func: LLVMValueRef = auto_diff.create_primal_and_gradient(
-            &mut fnc_activity,
             fnc as *mut LLVMOpaqueValue,
-            CDIFFE_TYPE::DFT_OUT_DIFF,
+            &mut param_info.input_activity,
+            param_info.ret_info,
             opt_grads
         ) as LLVMValueRef;
         grad_fncs.push(grad_func);
-        println!("TypeOf(grad_func) {:?}", LLVMTypeOf(grad_func));
-        println!("param count: grad_func {:?}", LLVMCountParams(grad_func));
+        dbg!(LLVMTypeOf(grad_func));
+        dbg!(LLVMCountParams(grad_func));
         #[allow(deprecated)]
         let name = LLVMGetValueName(grad_func);
-        println!("name: {:?}", name);
-        println!("Function: {:?}", grad_func);
+        dbg!(name);
+        dbg!(grad_func);
     }
     assert_eq!(
         grad_fncs.len(),
@@ -300,18 +243,19 @@ unsafe fn remove_U_symbols(
     module: LLVMModuleRef,
     context: LLVMContextRef,
     grad_functions: &mut [LLVMValueRef],
+    grad_names: Vec<String>,
     primary_fnc_infos: Vec<String>,
 ) {
     for i in 0..grad_functions.len() {
-        let name = &primary_fnc_infos[i];
 
         // rename grad fnc to tmp name (to not hide equally named undef symbols anymore)
+        let name = &primary_fnc_infos[i];
         let tmp = "tmp_diffe".to_owned() + &name;
         let c_tmp = CString::new(tmp.clone()).unwrap();
         LLVMSetValueName2(grad_functions[i], c_tmp.as_ptr(), tmp.len() as usize);
 
         // access undef symbols
-        let new_fnc_name: String = "diffe".to_owned() + &name;
+        let new_fnc_name = &grad_names[i];
         let c_fnc_name = CString::new(new_fnc_name.clone()).unwrap();
         let u_fnc: LLVMValueRef = LLVMGetNamedFunction(module, c_fnc_name.as_ptr()); // get the U(ndefined) fnc symbol
         assert_ne!(
@@ -333,13 +277,17 @@ unsafe fn remove_U_symbols(
                 panic!("Return types match. However a different, unhandled missmatch occured: u: {:?}, f: {:?}", u_type_string, f_type_string);
             }
 
+            /*
             // TODO: What if return type isn't a struct? e.g. by using a different enzyme style
+            // ANSWER: I guess it's fine?
             if LLVMCountStructElementTypes(f_return_type) != 1 {
                 panic!(
                     "Return struct contains more than one element. u: {:?}, f: {:?}",
                     u_type_string, f_type_string
                 );
             }
+            */
+
             grad_functions[i] = extract_return_type(
                 module,
                 context,
@@ -396,9 +344,8 @@ unsafe fn localize_all_symbols(module: LLVMModuleRef) {
         symbol = LLVMGetNextFunction(symbol);
     }
 }
-unsafe fn globalize_grad_symbols(module: LLVMModuleRef, primary_fnc_infos: Vec<String>) {
-    for primary_name in primary_fnc_infos {
-        let grad_fnc_name = "diffe".to_owned() + &primary_name;
+unsafe fn globalize_grad_symbols(module: LLVMModuleRef, grad_fnc_names: Vec<String>) {
+    for grad_fnc_name in grad_fnc_names {
         let c_grad_fnc_name = CString::new(grad_fnc_name.clone()).unwrap();
         let grad_fnc = LLVMGetNamedFunction(module, c_grad_fnc_name.as_ptr());
         assert_ne!(
@@ -423,21 +370,23 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     };
 
     // Most functions will only require one, so let's split it up.
-    let (mut primary_names, mut primary_activities) = (vec![], vec![]);
+    //let (mut primary_names, mut input_activities, mut return_infos) = (vec![], vec![], vec![]);
+    let (mut primary_names, mut grad_names, mut parameter_informations) = (vec![], vec![], vec![]);
     for info in primary_fnc_infos {
-        primary_names.push(info.name);
-        primary_activities.push(info.activity);
+        primary_names.push(info.primary_name);
+        grad_names.push(info.grad_name);
+        parameter_informations.push(info.params);
     }
 
     unsafe {
         let (module, context) = read_bc(&out_bc);
         let functions = load_primary_functions(module, primary_names.clone());
         enzyme_set_clbool(cfg!(debug_assertions)); // print generated functions in debug mode
-        let mut grad_fncs = generate_grad_function(functions, primary_activities);
+        let mut grad_fncs = generate_grad_function(functions, parameter_informations);
         enzyme_set_clbool(false);
-        remove_U_symbols(module, context, &mut grad_fncs, primary_names.clone());
+        remove_U_symbols(module, context, &mut grad_fncs, grad_names.clone(), primary_names.clone());
         localize_all_symbols(module);
-        globalize_grad_symbols(module, primary_names);
+        globalize_grad_symbols(module, grad_names);
         dumb_module_to_obj(module, context, &out_obj);
     };
 
@@ -463,6 +412,7 @@ fn find_bc_file() -> Option<PathBuf>{
     return Some(bc_path);
 }
 
+/// 
 pub fn build(primary_functions: Vec<FncInfo>) {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let control_file = out_path.join("enzyme-done");

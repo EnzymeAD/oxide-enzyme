@@ -11,9 +11,19 @@ fn main() {
     let check_path = entry_path.join("enzyme-done");
     println!("cargo:rerun-if-changed={}", check_path.display());
 
-    let fnc_x = FncInfo::new("testx",  vec![CDIFFE_TYPE::DFT_OUT_DIFF]);
-    let fnc_2 = FncInfo::new("test2",  vec![CDIFFE_TYPE::DFT_OUT_DIFF]);
+    let fnc_1 = FncInfo::new("test","enzyme1",
+                             vec![CDIFFE_TYPE::DFT_OUT_DIFF],
+                             Some((CDIFFE_TYPE::DFT_OUT_DIFF, true)));
+
+    let fnc_2 = FncInfo::new("test","enzyme2",
+                             vec![CDIFFE_TYPE::DFT_OUT_DIFF],
+                             Some((CDIFFE_TYPE::DFT_OUT_DIFF, false)));
+
+    let fnc_3 = FncInfo::new("test","enzyme3",
+                             vec![CDIFFE_TYPE::DFT_OUT_DIFF],
+                             None);
+
     oxide_enzyme::build(
-        vec![fnc_x, fnc_2]
+        vec![fnc_1, fnc_2, fnc_3]
     );
 }

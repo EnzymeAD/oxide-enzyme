@@ -23,13 +23,33 @@ pub fn enzyme_set_clbool(val: bool) {
 /// Should be given by Enzyme users to declare how arguments shall be handled
 #[derive(Clone)]
 pub struct FncInfo {
-    pub name: String, // What's the (unmangled) name of the Rust function to differentiate?
-    pub activity: Vec<CDIFFE_TYPE>, // How should it's arguments be treated?
+    pub primary_name: String, // What's the (unmangled) name of the Rust function to differentiate?
+    pub grad_name: String,
+    pub params: ParamInfos,
+}
+
+#[derive(Clone)]
+pub struct ParamInfos {
+    pub input_activity: Vec<CDIFFE_TYPE>, // How should it's arguments be treated?
+    pub ret_info: Option<(CDIFFE_TYPE, bool)>,
 }
 
 impl FncInfo {
-    pub fn new(name: &str, activity: Vec<CDIFFE_TYPE>) -> FncInfo {
-        FncInfo { name: name.to_string(), activity }        
+    /// Enzyme requires one FncInfo Struct per function differentiation
+    ///
+    /// primary_name should be identical to the name of the existing rust function.
+    ///
+    /// grad_name will be the name of the generated rust function.
+    ///
+    /// ret_info should be None if the primary function has no return type.
+    /// Otherwise it should specify if we want the output's gradient and if we want
+    /// the return value of the primal rust function.
+    pub fn new(primary_name: &str, grad_name: &str, input_activity: Vec<CDIFFE_TYPE>, ret_info: Option<(CDIFFE_TYPE, bool)>) -> FncInfo {
+        FncInfo { 
+            primary_name: primary_name.to_string(), 
+            grad_name: grad_name.to_string(), 
+            params: ParamInfos {input_activity, ret_info},
+        }
     }
 }
 
@@ -54,14 +74,23 @@ impl AutoDiff {
         AutoDiff { logic_ref, type_analysis }
     }
 
-    pub fn create_primal_and_gradient(&self, args_activity: &mut [CDIFFE_TYPE], fnc_todiff: LLVMValueRef, ret_type: CDIFFE_TYPE, opt: bool) -> LLVMValueRef {
-        //let tree_tmp = TypeTree::from_type(CConcreteType::DT_Float, context).prepend(0);
+    pub fn create_primal_and_gradient(
+        &self, fnc_todiff: LLVMValueRef, args_activity: &mut [CDIFFE_TYPE], 
+        ret_info: Option<(CDIFFE_TYPE, bool)>, opt: bool) -> LLVMValueRef
+    {
+
+        let (ret_activity, ret_primary_ret) = match ret_info {
+            None => (CDIFFE_TYPE::DFT_CONSTANT, false as u8),
+            Some((activity, ret_primary_ret)) => (activity, ret_primary_ret as u8),
+        };
+
         let tree_tmp = TypeTree::new();
 
         let mut args_tree = vec![tree_tmp.inner];
 
-        //let mut args_activity = vec![CDIFFE_TYPE::DFT_OUT_DIFF];
-        let mut args_uncachable = vec![0;args_activity.len()];
+        // We don't support volatile / extern / (global?) values.
+        // Just because I didn't had time to test them, and it seems less urgent.
+        let mut args_uncacheable = vec![0;args_activity.len()];
 
         //let ret = tree::TypeTree::from_type(CConcreteType::DT_Float, context).prepend(0);
         let ret = TypeTree::new();
@@ -82,12 +111,12 @@ impl AutoDiff {
         unsafe {
             EnzymeCreatePrimalAndGradient(
                 self.logic_ref, // Logic
-                fnc_todiff, ret_type, // LLVM function, return type
-                args_activity.as_mut_ptr(), 1, // constant arguments
+                fnc_todiff, ret_activity, // LLVM function, return type
+                args_activity.as_mut_ptr(), args_activity.len() as u64, // constant arguments
                 self.type_analysis, // type analysis struct
-                0, 0, CDerivativeMode::DEM_ReverseModeCombined, // return value, dret_used, top_level which was 1
+                ret_primary_ret as u8, 0, CDerivativeMode::DEM_ReverseModeCombined, // return value, dret_used, top_level which was 1
                 ptr::null_mut(), dummy_type, // additional_arg, type info (return + args)
-                args_uncachable.as_mut_ptr(), 1, // unreachable arguments
+                args_uncacheable.as_mut_ptr(), args_uncacheable.len() as u64, // uncacheable arguments
                 ptr::null_mut(), // write augmented function to this
                 0, opt as u8 // atomic_add, post_opt
             )
@@ -100,59 +129,3 @@ impl Drop for AutoDiff {
         unsafe { FreeEnzymeLogic(self.logic_ref) }
     }
 }
-
-/*
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use llvm_sys::core::LLVMModuleCreateWithName;
-    use std::ffi::CString;
-
-    #[test]
-    fn empty_tree() {
-        let _ = unsafe {
-            EnzymeNewTypeTree()
-        };
-    }
-
-
-    #[test]
-    fn new_type_analysis() {
-      let _ta = createEmptyTypeAnalysis();
-    }
-
-    #[test]
-    fn new_autodiff() {
-      let ta = createEmptyTypeAnalysis();
-      let _ad = AutoDiff::new(ta);
-    }
-
-    #[test]
-    fn get_LLVM_Module() {
-        let _dummy_module = unsafe {
-            LLVMModuleCreateWithName(CString::new("dummy").unwrap().into_raw())
-        } as *mut LLVMOpaqueModule;
-    }
-    #[test]
-    fn basic_autodiff() {
-      2;
-    }
-
-    fn square(x: f32) -> f32 {
-      x * x
-    }
-  
-    /*
-    #[test]
-    fn dsquare() {
-      let epsilon = 1e-3;
-      let v1 = __enzyme_autodiff(square, 1.);
-      let v2 = __enzyme_autodiff(square, 2.);
-      let v3 = __enzyme_autodiff(square, 2.5);
-      assert!(v1- 2. < epsilon);
-      assert!(v1- 4. < epsilon);
-      assert!(v1- 5. < epsilon);
-    }
-    */
-}
-*/
