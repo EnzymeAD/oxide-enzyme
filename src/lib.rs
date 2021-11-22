@@ -80,6 +80,12 @@ unsafe fn create_target_machine() -> LLVMTargetMachineRef {
     target_machine
 }
 
+fn get_type(t: LLVMTypeRef) -> CString {
+    unsafe {
+        CString::from_raw(LLVMPrintTypeToString(t))
+    }
+}
+
 /// Read the binary representation of LLVM IR code into a module and context
 unsafe fn read_bc(path: &Path) -> (LLVMModuleRef, LLVMContextRef) {
     let context = LLVMContextCreate();
@@ -142,6 +148,7 @@ unsafe fn generate_grad_function(
     let mut grad_fncs = vec![];
     let opt_grads = if cfg!(debug_assertions) { false } else { true };
     for (&mut fnc, (param_info, grad_name)) in functions.iter_mut().zip(param_infos.iter_mut().zip(grad_names.iter())) {
+        dbg!(grad_name);
         let grad_func: LLVMValueRef = auto_diff.create_primal_and_gradient(
             fnc as *mut LLVMOpaqueValue,
             &mut param_info.input_activity,
@@ -150,15 +157,13 @@ unsafe fn generate_grad_function(
         ) as LLVMValueRef;
         grad_fncs.push(grad_func);
         let llvm_grad_fnc_type = LLVMTypeOf(grad_func);
-        let grad_fnc_type = CString::from_raw(LLVMPrintTypeToString(llvm_grad_fnc_type));
-        dbg!(grad_fnc_type);
+        dbg!(get_type(llvm_grad_fnc_type));
         dbg!(LLVMCountParams(grad_func));
         /*
         #[allow(deprecated)]
         let llvm_name = LLVMGetValueName(grad_func);
         let name = CString::from_raw(llvm_name as *mut i8);
         dbg!(name);*/
-        dbg!(grad_name);
         dbg!(grad_func);
         dbg!();
     }
@@ -182,6 +187,8 @@ unsafe fn extract_return_type(
     f_type: LLVMTypeRef,
     fnc_name: String,
 ) -> LLVMValueRef {
+    dbg!("Unpacking", fnc_name.clone());
+    dbg!("From: ", get_type(f_type), " into ", get_type(u_type));
     let param_num = LLVMCountParamTypes(LLVMGetElementType(f_type));
     let mut param_types: Vec<LLVMTypeRef> = vec![];
     param_types.reserve(param_num as usize);
@@ -259,12 +266,9 @@ fn print_ffi_type(module: LLVMModuleRef, ffi_names: Vec<String>) {
             let u_type: LLVMTypeRef = LLVMTypeOf(u_fnc);
             let u_return_type = LLVMGetReturnType(LLVMGetElementType(u_type));
 
-            let u_type_string = CString::from_raw(LLVMPrintTypeToString(u_type.clone()));
-            let u_ret_type_string = CString::from_raw(LLVMPrintTypeToString(u_return_type.clone()));
-
-            dbg!("Some type missmatch happened for ".to_owned()+&name);
-            dbg!(u_type_string); 
-            dbg!(u_ret_type_string);
+            dbg!("Expected type for ", name);
+            dbg!(get_type(u_type));
+            dbg!(get_type(u_return_type));
             dbg!();
         }
     }
@@ -400,6 +404,31 @@ unsafe fn globalize_grad_symbols(module: LLVMModuleRef, grad_fnc_names: Vec<Stri
     }
 }
 
+fn verify_argument_len(functions: &Vec<LLVMValueRef>, 
+                       fnc_names: Vec<String>, grad_names: Vec<String>, 
+                       activity_vecs: Vec<ParamInfos>) {
+
+    assert_eq!(functions.len(), fnc_names.len(), "Programmer bug, please report this message on Github");
+    assert_eq!(functions.len(), grad_names.len(), "Programmer bug, please report this message on Github");
+    assert_eq!(functions.len(), activity_vecs.len(), "Programmer bug, please report this message on Github");
+
+    for i in 0..functions.len() {
+        let fnc = functions[i];
+        let act = &activity_vecs[i];
+        let primary_fnc_name = &fnc_names[i];
+        let grad_fnc_name = &grad_names[i];
+
+        let num_primary_parameters;
+        unsafe {
+            num_primary_parameters = LLVMCountParams(fnc);
+        }
+        let num_activity_infos = act.input_activity.len() as u32;
+        assert_eq!(num_primary_parameters, num_activity_infos, "Missmatch while generating {} from function {}.
+            Please specify exactly one activity (CDIFFE_TYPE) value 
+            for each of the input parameters of your primary function.", grad_fnc_name, primary_fnc_name);
+    }
+}
+
 fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     let entry_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let out_obj = entry_path
@@ -423,16 +452,33 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
 
 
     unsafe {
+        // First we read a (merged) bc file, containing all the code which we might differentiate
         let (module, context) = read_bc(&out_bc);
+
+        // Just for debugging purpose, some type infos
         print_ffi_type(module, grad_names.clone());
+
+        // We are loading the existing primary functions, to pass them to enzyme.
         let functions = load_primary_functions(module, primary_names.clone());
+        
+        // Enzyme might deduce some things, but lets make it explicit. One activity information for
+        // each input parameter.
+        verify_argument_len(&functions, primary_names.clone(), grad_names.clone(), parameter_informations.clone());
+
         enzyme_set_clbool(cfg!(debug_assertions)); // print generated functions in debug mode
         enzyme_set_clbool(false); // print generated functions in debug mode
+
+        // Now we generate the gradients based on our input and the selected activity values for
+        // their parameters
         let mut grad_fncs = generate_grad_function(functions, grad_names.clone(), parameter_informations);
         enzyme_set_clbool(false);
+
+        // Some magic to make the symbols link together nicely
         remove_U_symbols(module, context, &mut grad_fncs, grad_names.clone(), primary_names.clone());
         localize_all_symbols(module);
         globalize_grad_symbols(module, grad_names);
+
+        // And now we store all gradients in a single object file
         dumb_module_to_obj(module, context, &out_obj);
     };
 
@@ -444,8 +490,11 @@ fn find_bc_file() -> Option<PathBuf>{
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let search_basedir = out_path.parent().unwrap().parent().unwrap().parent().unwrap();
     let mut bc_path = PathBuf::new();
+    /*
     let crate_name: String = env::var("CARGO_PKG_NAME").unwrap();
     let search_term = search_basedir.join("deps").join(crate_name + &"-*.bc");
+    */
+    let search_term = search_basedir.parent().unwrap().parent().unwrap().join("merged.bc");
     let search_results = glob(search_term.to_str().unwrap()).expect("Failed to read glob pattern");
     for entry in search_results {
         if let Ok(path) = entry {

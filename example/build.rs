@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 use oxide_enzyme::{FncInfo, CDIFFE_TYPE::*};
 use std::path::PathBuf;
 use std::env;
@@ -56,8 +57,20 @@ fn main() {
                              Some((DFT_OUT_DIFF, false)));
 
 
+    let fnc_ext1 = FncInfo::new("g_wrap","enzyme1",
+                             vec![DFT_OUT_DIFF],
+                             Some((DFT_OUT_DIFF, true)));
+                             //Some((DFT_CONSTANT, false)));
+
+    let fnc_ext2 = FncInfo::new("g_wrap","enzyme2",
+                             vec![DFT_OUT_DIFF],
+                             Some((DFT_OUT_DIFF, false)));
+
+    let fnc_ext3 = FncInfo::new("f_wrap","enzyme3",
+                             vec![DFT_OUT_DIFF],
+                             Some((DFT_OUT_DIFF, false)));
 
     oxide_enzyme::build(
-        vec![fnc_1, fnc_2, fnc_3, fnc_4, fnc_5, fnc_6]
+        vec![fnc_ext1, fnc_ext2, fnc_ext3]//, fnc_2, fnc_3, fnc_4, fnc_5, fnc_6]
     );
 }
