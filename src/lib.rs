@@ -11,25 +11,45 @@ use llvm_sys::target_machine::*;
 use llvm_sys::LLVMLinkage;
 
 use glob::glob;
+use std::process::Command;
 
 mod enzyme;
 use enzyme::{create_empty_type_analysis, AutoDiff, enzyme_set_clbool};
 use enzyme::{LLVMOpaqueValue, ParamInfos};
 pub use enzyme::{CDIFFE_TYPE, FncInfo};
+use dirs;
 
-#[allow(non_camel_case_types)]
-pub enum crate_type {
-    bin,
-    bin_with_name(String),
-    lib,
-    dylib,
-    staticlib,
-    cdylib,
-    rlib,
-    proc_macro,
+fn llvm_bin_dir() -> PathBuf {
+    dirs::cache_dir().unwrap()
+        .join("enzyme")
+        .join("rustc-1.56.0-src")
+        .join("build")
+        .join("x86_64-unknown-linux-gnu")
+        .join("llvm")
+        .join("build")
+        .join("bin")
 }
 
+pub fn llvm_objcopy() -> PathBuf {
+    llvm_bin_dir().join("llvm-objcopy")
+}
+pub fn llvm_link() -> PathBuf {
+    llvm_bin_dir().join("llvm-link")
+}
 
+fn run_and_printerror(command: &mut Command) {
+    println!("Running: `{:?}`", command);
+    match command.status() {
+        Ok(status) => {
+            if !status.success() {
+                panic!("Failed: `{:?}` ({})", command, status);
+            }
+        }
+        Err(error) => {
+            panic!("Failed: `{:?}` ({})", command, error);
+        }
+    }
+}
 
 /// Create target machine with default relocation/optimization/code model
 unsafe fn create_target_machine() -> LLVMTargetMachineRef {
@@ -87,11 +107,52 @@ fn get_type(t: LLVMTypeRef) -> CString {
 }
 
 /// Read the binary representation of LLVM IR code into a module and context
-unsafe fn read_bc(path: &Path) -> (LLVMModuleRef, LLVMContextRef) {
+unsafe fn read_bc_files(fnc_names: Vec<String>) -> (LLVMModuleRef, LLVMContextRef) {
+
+    // Collect some environment information
+    let crate_name: String = env::var("CARGO_PKG_NAME").unwrap();
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+    let merged_bc = out_dir.join("merged.bc").into_os_string().into_string().unwrap();
+
+    let central_dir = out_dir
+        .parent().unwrap()
+        .parent().unwrap()
+        .parent().unwrap();
+    let deps_dir = central_dir.join("deps");
+
+    let mut bc_files: Vec<String> = vec![];
+    let mut main_bc: String = "".to_owned();
+    let search_term = deps_dir.join("*.bc");
+    let search_results = glob(search_term.to_str().unwrap()).expect("Failed to read glob pattern");
+    for entry in search_results {
+        if let Ok(path) = entry {
+            let bc_string_name = path.into_os_string().into_string().unwrap();
+            if bc_string_name.starts_with(deps_dir.join(&crate_name).to_str().unwrap()) {
+                main_bc = bc_string_name;
+            } else {
+                bc_files.push(bc_string_name);
+            }
+        }
+    }
+    dbg!(&bc_files);
+    assert_ne!("", main_bc, "Couldn't find central bc file");
+
+    let mut merge = Command::new(&llvm_link());
+    merge.current_dir(&central_dir);
+    for fnc in fnc_names {
+        merge.args(&["--import", &fnc, &main_bc]);
+    }
+    for bc in bc_files {
+        merge.arg(&bc);
+    }
+    merge.args(&["--only-needed", "-o", &merged_bc]);
+    run_and_printerror(&mut merge);
+
     let context = LLVMContextCreate();
     let mut msg = ptr::null_mut();
 
-    let path = CString::new(path.to_str().unwrap()).unwrap();
+    let path = CString::new(merged_bc).unwrap();
     let mut memory_buf = ptr::null_mut();
     assert_eq!(
         LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr(), &mut memory_buf, &mut msg),
@@ -134,6 +195,7 @@ unsafe fn load_primary_functions(
         fnc_names.len(),
         "load_llvm: couldn't find all functions!"
     );
+    // panic!("foo {} {}", functions.len(), fnc_names.len());
     functions
 }
 
@@ -381,15 +443,24 @@ unsafe fn dumb_module_to_obj(module: LLVMModuleRef, context: LLVMContextRef, out
 }
 
 unsafe fn localize_all_symbols(module: LLVMModuleRef) {
+
+    // All functions
     let mut symbol = LLVMGetFirstFunction(module);
     let last_symbol = LLVMGetLastFunction(module);
-    if symbol == last_symbol {
-        panic!("Found no symbols in module");
-    }
     while symbol != last_symbol {
         LLVMSetLinkage(symbol, LLVMLinkage::LLVMInternalLinkage);
         symbol = LLVMGetNextFunction(symbol);
     }
+    LLVMSetLinkage(symbol, LLVMLinkage::LLVMInternalLinkage);
+
+    // Global Symbols
+    let mut symbol = LLVMGetFirstGlobal(module);
+    let last_symbol = LLVMGetLastGlobal(module);
+    while symbol != last_symbol {
+        LLVMSetLinkage(symbol, LLVMLinkage::LLVMInternalLinkage);
+        symbol = LLVMGetNextGlobal(symbol);
+    }
+    LLVMSetLinkage(symbol, LLVMLinkage::LLVMInternalLinkage);
 }
 unsafe fn globalize_grad_symbols(module: LLVMModuleRef, grad_fnc_names: Vec<String>) {
     for grad_fnc_name in grad_fnc_names {
@@ -429,17 +500,50 @@ fn verify_argument_len(functions: &Vec<LLVMValueRef>,
     }
 }
 
+fn list_functions(module: LLVMModuleRef) -> Vec<LLVMValueRef> {
+    unsafe {
+        let mut res = vec![];
+        let mut symbol = LLVMGetFirstFunction(module);
+        let last_symbol = LLVMGetLastFunction(module);
+        if symbol == last_symbol {
+            panic!("Found no symbols in module");
+        }
+        while symbol != last_symbol {
+            res.push(symbol.clone());
+            symbol = LLVMGetNextFunction(symbol);
+        }
+        return res;
+    }
+}
+
+fn remove_functions(fncs: Vec<LLVMValueRef>) {
+    unsafe {
+        for fnc in fncs {
+            let num = LLVMCountBasicBlocks(fnc);
+            let mut bb: Vec<LLVMBasicBlockRef> = Vec::with_capacity(num as usize);
+            LLVMGetBasicBlocks(fnc, bb.as_mut_ptr());
+            for block in bb {
+                LLVMDeleteBasicBlock(block);
+                // LLVMRemoveBasicBlockFromParent(block);
+            }
+            // LLVMDeleteFunction(fnc); // Breaks other things
+        }
+    }
+}
+
 fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     let entry_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let out_obj = entry_path
         .clone()
         .with_file_name("result")
         .with_extension("o");
+    let out_archive = entry_path
+        .clone()
+        .join("libGradFunc.a")
+        .into_os_string()
+        .into_string()
+        .unwrap();
     
-    let out_bc = match find_bc_file() {
-        None => panic!("Didn't found bc file! \n You probably missed the first run. Please read the doc or use the provided cargo-wrapper."),
-        Some(path) => path,
-    };
 
     // Most functions will only require one, so let's split it up.
     //let (mut primary_names, mut input_activities, mut return_infos) = (vec![], vec![], vec![]);
@@ -452,8 +556,12 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
 
 
     unsafe {
-        // First we read a (merged) bc file, containing all the code which we might differentiate
-        let (module, context) = read_bc(&out_bc);
+
+        // Merge and load the bitcode files with some care to have all the code which we might differentiate
+        let (module, context) = read_bc_files(primary_names.clone());
+
+        // Store existing functions name to clean up later
+        let junk_fnc = list_functions(module);
 
         // Just for debugging purpose, some type infos
         print_ffi_type(module, grad_names.clone());
@@ -473,6 +581,9 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
         let mut grad_fncs = generate_grad_function(functions, grad_names.clone(), parameter_informations);
         enzyme_set_clbool(false);
 
+        // Now that we have the gradients, lets clean up
+        remove_functions(junk_fnc);
+
         // Some magic to make the symbols link together nicely
         remove_U_symbols(module, context, &mut grad_fncs, grad_names.clone(), primary_names.clone());
         localize_all_symbols(module);
@@ -484,28 +595,12 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
 
     // compile to static archive
     cc::Build::new().object(out_obj).compile("GradFunc");
+    
+    let mut objcopy = Command::new(llvm_objcopy());
+    objcopy.args(&["--localize-symbol", "__rust_probestack", &out_archive, &out_archive]);
+    run_and_printerror(&mut objcopy);
 }
 
-fn find_bc_file() -> Option<PathBuf>{
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let search_basedir = out_path.parent().unwrap().parent().unwrap().parent().unwrap();
-    let mut bc_path = PathBuf::new();
-    /*
-    let crate_name: String = env::var("CARGO_PKG_NAME").unwrap();
-    let search_term = search_basedir.join("deps").join(crate_name + &"-*.bc");
-    */
-    let search_term = search_basedir.parent().unwrap().parent().unwrap().join("merged.bc");
-    let search_results = glob(search_term.to_str().unwrap()).expect("Failed to read glob pattern");
-    for entry in search_results {
-        if let Ok(path) = entry {
-            bc_path = path;
-        }
-    }
-    if PathBuf::new() == bc_path {
-        return None;
-    }
-    return Some(bc_path);
-}
 
 /// 
 pub fn build(primary_functions: Vec<FncInfo>) {
@@ -517,11 +612,9 @@ pub fn build(primary_functions: Vec<FncInfo>) {
         dbg!();
         fs::remove_file(&control_file).unwrap();
         build_archive(primary_functions);
+        println!("cargo:rustc-link-search={}", out_path.display()); // cc does that already afaik
         println!("cargo:rustc-link-lib=static=GradFunc"); // cc does that already afaik
     } else {
-        // let flags: String = env::var("CARGO_CFG_EMIT=llvm-bc").unwrap(); 
-        // TODO: implement such a check
-        // 
         dbg!("first call"); // now cargo/rustc will generate the .bc file
         fs::File::create(control_file).unwrap();
     }
