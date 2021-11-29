@@ -86,7 +86,7 @@ impl AutoDiff {
 
         let tree_tmp = TypeTree::new();
 
-        let mut args_tree = vec![tree_tmp.inner];
+        let mut args_tree = vec![tree_tmp.inner; args_activity.len()];
 
         // We don't support volatile / extern / (global?) values.
         // Just because I didn't had time to test them, and it seems less urgent.
@@ -100,7 +100,7 @@ impl AutoDiff {
             size: 0,
         };
 
-        let mut known_values = vec![kv_tmp];
+        let mut known_values = vec![kv_tmp;args_activity.len()];
 
         let dummy_type = CFnTypeInfo {
             Arguments: args_tree.as_mut_ptr(),
@@ -108,7 +108,8 @@ impl AutoDiff {
             KnownValues: known_values.as_mut_ptr(),
         };
 
-        unsafe {
+        dbg!("before-ad");
+        let res = unsafe {
             EnzymeCreatePrimalAndGradient(
                 self.logic_ref, // Logic
                 fnc_todiff, ret_activity, // LLVM function, return type
@@ -120,7 +121,9 @@ impl AutoDiff {
                 ptr::null_mut(), // write augmented function to this
                 0, opt as u8 // atomic_add, post_opt
             )
-        }
+        };
+        dbg!("after-ad");
+        res
     }
 }
 
