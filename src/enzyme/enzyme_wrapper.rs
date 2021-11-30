@@ -10,7 +10,27 @@ use std::ffi::CString;
 use std::ptr;
 use std::os::raw::c_void;
 
-pub fn enzyme_set_clbool(val: bool) {
+pub fn enzyme_print_activity(val: bool) {
+    #[link(name = "Enzyme-13")]
+    extern "C" {
+        static mut EnzymePrintActivity: c_void;
+    }
+    unsafe {
+        EnzymeSetCLBool(std::ptr::addr_of_mut!(EnzymePrintActivity), val as u8);
+    }
+}
+
+pub fn enzyme_print_type(val: bool) {
+    #[link(name = "Enzyme-13")]
+    extern "C" {
+        static mut EnzymePrintType: c_void;
+    }
+    unsafe {
+        EnzymeSetCLBool(std::ptr::addr_of_mut!(EnzymePrintType), val as u8);
+    }
+}
+
+pub fn enzyme_print_functions(val: bool) {
     #[link(name = "Enzyme-13")]
     extern "C" {
         static mut EnzymePrint: c_void;

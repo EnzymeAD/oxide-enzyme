@@ -14,7 +14,7 @@ use glob::glob;
 use std::process::Command;
 
 mod enzyme;
-use enzyme::{create_empty_type_analysis, AutoDiff, enzyme_set_clbool};
+use enzyme::{create_empty_type_analysis, AutoDiff, enzyme_print_type, enzyme_print_functions, enzyme_print_activity};
 use enzyme::{LLVMOpaqueValue, ParamInfos};
 pub use enzyme::{CDIFFE_TYPE, FncInfo};
 use dirs;
@@ -217,6 +217,7 @@ unsafe fn generate_grad_function(
             param_info.ret_info,
             opt_grads
         ) as LLVMValueRef;
+        dbg!("Generated gradient function");
         grad_fncs.push(grad_func);
         let llvm_grad_fnc_type = LLVMTypeOf(grad_func);
         dbg!(get_type(llvm_grad_fnc_type));
@@ -546,7 +547,6 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     
 
     // Most functions will only require one, so let's split it up.
-    //let (mut primary_names, mut input_activities, mut return_infos) = (vec![], vec![], vec![]);
     let (mut primary_names, mut grad_names, mut parameter_informations) = (vec![], vec![], vec![]);
     for info in primary_fnc_infos {
         primary_names.push(info.primary_name);
@@ -573,16 +573,16 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
         // each input parameter.
         verify_argument_len(&functions, primary_names.clone(), grad_names.clone(), parameter_informations.clone());
 
-        enzyme_set_clbool(cfg!(debug_assertions)); // print generated functions in debug mode
-        enzyme_set_clbool(false); // print generated functions in debug mode
+        //enzyme_print_type(cfg!(debug_assertions)); // print generated functions in debug mode
+        enzyme_print_type(true); // print generated functions in debug mode
 
         // Now we generate the gradients based on our input and the selected activity values for
         // their parameters
         let mut grad_fncs = generate_grad_function(functions, grad_names.clone(), parameter_informations);
-        enzyme_set_clbool(false);
+        //enzyme_print_type(false);
 
         // Now that we have the gradients, lets clean up
-        remove_functions(junk_fnc);
+        // remove_functions(junk_fnc);
 
         // Some magic to make the symbols link together nicely
         remove_U_symbols(module, context, &mut grad_fncs, grad_names.clone(), primary_names.clone());
