@@ -1,8 +1,7 @@
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::fmt;
 
-use super::enzyme_sys::{CTypeTreeRef, EnzymeFreeTypeTree, EnzymeNewTypeTree, EnzymeNewTypeTreeCT, CConcreteType, EnzymeTypeTreeOnlyEq, EnzymeMergeTypeTree, EnzymeTypeTreeShiftIndiciesEq, EnzymeTypeTreeToString, EnzymeTypeTreeToStringFree};
-use crate::LLVMOpaqueContext;
+use super::enzyme_sys::{CTypeTreeRef, EnzymeFreeTypeTree, EnzymeNewTypeTree, EnzymeTypeTreeToString, EnzymeTypeTreeToStringFree};
 
 pub struct TypeTree {
     pub inner: CTypeTreeRef
@@ -51,39 +50,6 @@ impl TypeTree {
         let inner = unsafe { EnzymeNewTypeTree() };
 
         TypeTree { inner }
-    }
-
-    pub fn from_type(t: CConcreteType, ctx: *mut LLVMOpaqueContext) -> TypeTree {
-        let inner = unsafe { EnzymeNewTypeTreeCT(t, ctx) };
-
-        TypeTree { inner }
-    }
-
-    pub fn prepend(self, idx: isize) -> Self {
-        unsafe { 
-            EnzymeTypeTreeOnlyEq(self.inner, idx as i64)
-        }
-
-        self
-    }
-
-    pub fn merge_with(self, other: Self) -> Self {
-        unsafe {
-            EnzymeMergeTypeTree(self.inner, other.inner);
-        }
-
-        drop(other);
-        self
-    }
-
-    pub fn shift_indices(self, layout: &str, offset: isize, max_size: isize, add_offset: usize) -> Self {
-        let layout = CString::new(layout).unwrap();
-
-        unsafe {
-            EnzymeTypeTreeShiftIndiciesEq(self.inner, layout.as_ptr(), offset as i64, max_size as i64, add_offset as u64)
-        }
-
-        self
     }
 }
 

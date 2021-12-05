@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+simple_dep = { git = "https://github.com/ZuseZ4/simple_dep/" }
 
 [build-dependencies]
 oxide-enzyme = { path = ".." }

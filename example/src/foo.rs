@@ -1,4 +1,4 @@
 
-pub fn f(x: f32) -> f32 {
+pub fn j(x: f64) -> f64 {
     x * x + 2.0
 }

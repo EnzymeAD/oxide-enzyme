@@ -4,8 +4,17 @@ This is a package containing a Rust frontend for [Enzyme](https://github.com/wsm
 
 Enzyme is a plugin that performs automatic differentiation (AD) of statically analyzable LLVM. It is highly-efficient and its ability perform AD on optimized code allows Enzyme to meet or exceed the performance of state-of-the-art AD tools.
   
+# Supported types
+- Scalars  
+- Structs, Unions  
+- Tuple, Array, Vec  
+- Box, Reference, Raw pointer  
 
-# Usage
+We are working on adding support for dyn trait objects, slices and enums.
+Adding Generics to your types or implementing traits is already working fine.
+
+
+# Setup
 First you have to get an adequate rustc/llvm/enzyme build here: [enzyme\_build](https://github.com/ZuseZ4/enzyme\_build).  
 Afterwards for your convenience you should export this path for LLVM_SYS
 > $ export LLVM_SYS_130_PREFIX=$HOME/.cache/enzyme/rustc-1.56.0-src/build/x86_64-unknown-linux-gnu/llvm  
@@ -18,18 +27,19 @@ As an alternative you can also run
 
 inside of your enzyme and llvm build directory.
 
-Afterwards you can execute the following lines in `oxide-enzyme/example`
-> $ cargo +enzyme run --release
 
-# Supported types
-- Scalars  
-- Structs, Unions  
-- Tuple, Array, Vec  
-- Box, Reference, Raw pointer  
 
-We are working on adding support for trait objects, slices and enums.
+# Compilation
+We generate gradient functions based on LLVM-IR code. Therefore we currently need two compilation runs. The first to generate
+a llvm-bc file with the LLVM-IR code, the second to process the bc file, generate the gradients, and build the entire crate.
+You can do that manually using 
+> RUSTFLAGS="--emit=llvm-bc" cargo +enzyme -Z build-std rustc --target x86_64-unknown-linux-gnu -- --emit=llvm-bc -g -C opt-level=3 -Zno-link && RUSTFLAGS="--emit=llvm-bc" cargo +enzyme -Z build-std rustc --target x86_64-unknown-linux-gnu -- --emit=llvm-bc -g -C opt-level=3
+We recommend using an alias.
+This approach won't work on dependencies since cargo doesn't support such a build process.
+We are currently implementing a workaround.
 
-  
+
+
 # FAQ  
 - Q: How about Windows / Mac?
 - A: It might work, please let us know if you had a chance to test it.
@@ -55,4 +65,3 @@ If using this code in an academic setting, please cite the following paper to ap
  year = {2020}
 }
 ```
-
