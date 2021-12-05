@@ -51,7 +51,7 @@ pub struct FncInfo {
 #[derive(Clone)]
 pub struct ParamInfos {
     pub input_activity: Vec<CDIFFE_TYPE>, // How should it's arguments be treated?
-    pub ret_info: Option<(CDIFFE_TYPE, bool)>,
+    pub ret_info: Option<(CDIFFE_RETTYPE, bool)>,
 }
 
 impl FncInfo {
@@ -64,7 +64,7 @@ impl FncInfo {
     /// ret_info should be None if the primary function has no return type.
     /// Otherwise it should specify if we want the output's gradient and if we want
     /// the return value of the primal rust function.
-    pub fn new(primary_name: &str, grad_name: &str, input_activity: Vec<CDIFFE_TYPE>, ret_info: Option<(CDIFFE_TYPE, bool)>) -> FncInfo {
+    pub fn new(primary_name: &str, grad_name: &str, input_activity: Vec<CDIFFE_TYPE>, ret_info: Option<(CDIFFE_RETTYPE, bool)>) -> FncInfo {
         FncInfo { 
             primary_name: primary_name.to_string(), 
             grad_name: grad_name.to_string(), 
@@ -82,6 +82,27 @@ pub fn create_empty_type_analysis() -> EnzymeTypeAnalysisRef {
     }
 }
 
+#[allow(non_camel_case_types)]
+#[repr(u32)]  
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]  
+pub enum CDIFFE_RETTYPE {  
+    DFT_OUT_DIFF = CDIFFE_TYPE::DFT_OUT_DIFF as u32,  
+    DFT_CONSTANT = CDIFFE_TYPE::DFT_CONSTANT as u32,  
+}  
+
+// The Enzyme API is too unspecific for the return type, so we introduced
+// the stricter CDIFFE_RETTYPE to not allow types which are illegal for
+// the ret activity. Enzyme doesn't know this type, so we match it back.
+impl Into<CDIFFE_TYPE> for CDIFFE_RETTYPE {
+    fn into(self) -> CDIFFE_TYPE {
+        match self {
+            CDIFFE_RETTYPE::DFT_OUT_DIFF => CDIFFE_TYPE::DFT_OUT_DIFF,
+            CDIFFE_RETTYPE::DFT_CONSTANT => CDIFFE_TYPE::DFT_CONSTANT,
+        }
+    }
+
+}
+
 pub struct AutoDiff {
     logic_ref: EnzymeLogicRef,
     type_analysis: EnzymeTypeAnalysisRef
@@ -96,12 +117,12 @@ impl AutoDiff {
 
     pub fn create_primal_and_gradient(
         &self, fnc_todiff: LLVMValueRef, args_activity: &mut [CDIFFE_TYPE], 
-        ret_info: Option<(CDIFFE_TYPE, bool)>, opt: bool) -> LLVMValueRef
+        ret_info: Option<(CDIFFE_RETTYPE, bool)>, opt: bool) -> LLVMValueRef
     {
 
         let (ret_activity, ret_primary_ret) = match ret_info {
             None => (CDIFFE_TYPE::DFT_CONSTANT, false as u8),
-            Some((activity, ret_primary_ret)) => (activity, ret_primary_ret as u8),
+            Some((activity, ret_primary_ret)) => (activity.into(), ret_primary_ret as u8),
         };
 
         let tree_tmp = TypeTree::new();

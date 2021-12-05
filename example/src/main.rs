@@ -6,7 +6,7 @@ use simple_dep::{f,g};
 // So let's define the return structs which we will use
 #[repr(C)]
 #[derive(Debug)]
-struct Ret { first : f64 }
+struct Ret1 { first : f64 }
 #[repr(C)]
 #[derive(Debug)]
 struct Ret2 { first : f64, second : f64 }
@@ -53,11 +53,14 @@ fn h(x: f64, y: f64) -> f64 {
 // enzyme1 does return two floats, but if we try to access them both, 
 // rustc will replace their type with a single double...
 extern "C" {
-    fn enzyme1( _:f64, _:f64 ) -> Ret2;
-    fn enzyme2( _: f64, _:f64) -> Ret;
-    fn enzyme3( _: f64, _:f64) -> Ret;
+    fn multi_args1( _: f64, _: f64, _:f64 ) -> Ret2;
+    fn multi_args2( _: f64, _: f64, _:f64 ) -> Ret2;
+    fn multi_args3( _: f64, _: f64, _:f64 ) -> Ret2;
+    // fn enzyme1( _:f64, _:f64 ) -> Ret2;
+    // fn enzyme2( _: f64, _:f64) -> Ret;
     /*
-    fn enzyme4( _: f64, _:f64) -> Ret;
+    fn enzyme3( _: f64, ...  ) -> Ret;
+    fn enzyme4( _: f64, _:f64, _:f64) -> Ret3;
     fn enzyme5(val: f64);
     fn enzyme6(val: f64, d_val: f64, differeturn: f64) -> Ret;
     */
@@ -77,11 +80,11 @@ fn main() {
     unsafe {
         //dbg!(&f_wrap(1.0, 1.0));
         dbg!(&g_wrap(1.0));
-        dbg!(&enzyme1(2.0, 1.0));
-        dbg!(&enzyme2(2.0, 1.0));
-        dbg!(&enzyme3(1.0, 1.0));
+        dbg!(&multi_args1(2.0, 1.0, 1.0));
+        dbg!(&multi_args2(2.0, 1.0, 1.0));
+        dbg!(&multi_args3(2.0, 1.0, 1.0));
         /*
-        dbg!(&enzyme4(1.0, 1.0));
+        dbg!(&enzyme4(1.0, 1.0, 1.0));
         dbg!(&enzyme5(1.0));
         dbg!(&enzyme6(1.0, D_X, 2.0));
         println!("dx: {}", D_X);

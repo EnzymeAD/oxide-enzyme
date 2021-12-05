@@ -33,7 +33,7 @@ inside of your enzyme and llvm build directory.
 We generate gradient functions based on LLVM-IR code. Therefore we currently need two compilation runs. The first to generate
 a llvm-bc file with the LLVM-IR code, the second to process the bc file, generate the gradients, and build the entire crate.
 You can do that manually using 
-> "cargo +enzyme rustc -- -g -C opt-level=3 -Zno-link --emit=llvm-bc && cargo +enzyme rustc -- -g -C opt-level=3"
+> RUSTFLAGS="--emit=llvm-bc" cargo +enzyme -Z build-std rustc --target x86_64-unknown-linux-gnu -- --emit=llvm-bc -g -C opt-level=3 -Zno-link && RUSTFLAGS="--emit=llvm-bc" cargo +enzyme -Z build-std rustc --target x86_64-unknown-linux-gnu -- --emit=llvm-bc -g -C opt-level=3
 We recommend using an alias.
 This approach won't work on dependencies since cargo doesn't support such a build process.
 We are currently implementing a workaround.
@@ -65,4 +65,3 @@ If using this code in an academic setting, please cite the following paper to ap
  year = {2020}
 }
 ```
-
