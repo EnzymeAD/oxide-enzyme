@@ -44,7 +44,9 @@ $ cargo +enzyme run --release
 We generate gradient functions based on LLVM-IR code. Therefore we currently need two compilation runs. The first to generate
 a llvm-bc file with the LLVM-IR code, the second to process the bc file, generate the gradients, and build the entire crate.
 You can do that manually using 
-> RUSTFLAGS="--emit=llvm-bc" cargo +enzyme -Z build-std rustc --target x86_64-unknown-linux-gnu -- --emit=llvm-bc -g -C opt-level=3 -Zno-link && RUSTFLAGS="--emit=llvm-bc" cargo +enzyme -Z build-std rustc --target x86_64-unknown-linux-gnu -- --emit=llvm-bc -g -C opt-level=3
+```bash
+RUSTFLAGS="--emit=llvm-bc" cargo +enzyme -Z build-std rustc --target x86_64-unknown-linux-gnu -- --emit=llvm-bc -g -C opt-level=3 -Zno-link && RUSTFLAGS="--emit=llvm-bc" cargo +enzyme -Z build-std rustc --target x86_64-unknown-linux-gnu -- --emit=llvm-bc -g -C opt-level=3
+```
 We recommend using an alias.
 This approach won't work on dependencies since cargo doesn't support such a build process.
 We are currently implementing a workaround.
