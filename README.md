@@ -76,3 +76,13 @@ If using this code in an academic setting, please cite the following paper to ap
  year = {2020}
 }
 ```
+
+## License
+
+Copyright 2014-2021 The Rust Project Developers
+
+Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+[https://www.apache.org/licenses/LICENSE-2.0](https://www.apache.org/licenses/LICENSE-2.0)> or the MIT license
+<LICENSE-MIT or [https://opensource.org/licenses/MIT](https://opensource.org/licenses/MIT)>, at your
+option. Files in the project may not be
+copied, modified, or distributed except according to those terms.
