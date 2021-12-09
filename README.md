@@ -10,7 +10,7 @@ Enzyme is a plugin that performs automatic differentiation (AD) of statically an
 - Tuple, Array, Vec  
 - Box, Reference, Raw pointer  
 
-We are working on adding support for dyn trait objects, slices and enums.
+We are working on adding support for dyn trait objects, slices and enums.  
 Adding Generics to your types or implementing traits is already working fine.
 
 
@@ -19,26 +19,25 @@ First you have to get an adequate rustc/llvm/enzyme build here: [enzyme\_build](
 Afterwards for your convenience you should export this path for LLVM_SYS
 
 ```bash
-$ export LLVM_SYS_130_PREFIX=$HOME/.config/enzyme/rustc-1.56.0-src/build/x86_64-unknown-linux-gnu/llvm  
+$ export LLVM_SYS_130_PREFIX=$HOME/.config/enzyme/rustc-1.57.0-src/build/x86_64-unknown-linux-gnu/llvm  
 ```
 
 and tell Enzyme about your library locations:  
 ```bash
-$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.config/enzyme/Enzyme-0.0.20/enzyme/build/Enzyme:$HOME/.config/enzyme/rustc-1.56.0-src/build/x86_64-unknown-linux-gnu/llvm/build/lib/  
+$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.config/enzyme/Enzyme-0.0.24/enzyme/build/Enzyme:$HOME/.config/enzyme/rustc-1.57.0-src/build/x86_64-unknown-linux-gnu/llvm/build/lib/  
 ```
   
 As an alternative you can also run   
 ```bash
 $ ninja install  
 ```
-
 inside of your enzyme and llvm build directory.
 
-Afterwards you can execute the following lines in `oxide-enzyme/example`
+Afterwards you can execute the following lines in `oxide-enzyme/example`, in order to compile the example.
 ```bash
-$ cargo +enzyme run --release
+$ cargo enzyme
 ```
-
+You will find your executable in `./target/$TARGET/debug/`
 
 # Compilation
 We generate gradient functions based on LLVM-IR code. Therefore we currently need two compilation runs. The first to generate
@@ -47,15 +46,18 @@ You can do that manually using
 ```bash
 RUSTFLAGS="--emit=llvm-bc" cargo +enzyme -Z build-std rustc --target x86_64-unknown-linux-gnu -- --emit=llvm-bc -g -C opt-level=3 -Zno-link && RUSTFLAGS="--emit=llvm-bc" cargo +enzyme -Z build-std rustc --target x86_64-unknown-linux-gnu -- --emit=llvm-bc -g -C opt-level=3
 ```
-We recommend using an alias.
+We have created a wrapper for this command which you can call with:
+```bash
+cargo enzyme
+```
+Please be aware that our wrapper will ignore all additional commands.  
 This approach won't work on dependencies since cargo doesn't support such a build process.
-We are currently implementing a workaround.
 
 
 
 # FAQ  
 - Q: How about Windows / Mac?
-- A: It might work, please let us know if you had a chance to test it.
+- A: WSL might work, the others probably not. Please let us know if you try.
 
   
 # Further Information
