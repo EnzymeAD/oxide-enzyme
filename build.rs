@@ -1,8 +1,7 @@
 use std::path::Path;
-use dirs;
 
-const ENZYME_VER: &str = "0.0.21-rust";
-const RUSTC_VER: &str = "1.56.0";
+const ENZYME_VER: &str = "0.0.24";
+const RUSTC_VER: &str = "1.57.0";
 const LLVM_VER: &str = "13";
 
 fn choose_library() {
@@ -29,6 +28,14 @@ fn copy_bindings() {
 }
 
 fn main() {
+    println!(
+        "cargo:rustc-env=RUSTC_VER={}",
+        RUSTC_VER
+    );
+    println!(
+        "cargo:rustc-env=TARGET={}",
+        std::env::var("TARGET").unwrap()
+    );
     copy_bindings();
     choose_library();
 }

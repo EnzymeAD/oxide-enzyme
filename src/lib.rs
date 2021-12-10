@@ -2,7 +2,7 @@ use std::ffi::{CStr, CString};
 use std::path::{Path, PathBuf};
 use std::{fs, env, ptr};
 
-use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyFunction, LLVMVerifyModule};
+use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyModule};
 use llvm_sys::core::*;
 use llvm_sys::ir_reader::LLVMParseIRInContext;
 use llvm_sys::prelude::*;
@@ -18,14 +18,15 @@ mod enzyme;
 use enzyme::{create_empty_type_analysis, AutoDiff, LLVMOpaqueValue, ParamInfos};
 pub use enzyme::{enzyme_print_type, enzyme_print_functions, enzyme_print_activity};
 pub use enzyme::{CDIFFE_TYPE, CDIFFE_RETTYPE, FncInfo};
-use dirs;
 
 fn llvm_bin_dir() -> PathBuf {
+    let rustc_ver = env!("RUSTC_VER");
+    let target = env!("TARGET");
     dirs::cache_dir().unwrap()
         .join("enzyme")
-        .join("rustc-1.56.0-src")
+        .join("rustc-".to_owned() + rustc_ver + "-src")
         .join("build")
-        .join("x86_64-unknown-linux-gnu")
+        .join(target)
         .join("llvm")
         .join("build")
         .join("bin")
@@ -133,14 +134,12 @@ fn read_bc_files(fnc_names: Vec<String>) -> (LLVMModuleRef, LLVMContextRef) {
     let mut main_bc: String = "".to_owned();
     let search_term = deps_dir.join("*.bc");
     let search_results = glob(search_term.to_str().unwrap()).expect("Failed to read glob pattern");
-    for entry in search_results {
-        if let Ok(path) = entry {
-            let bc_string_name = path.into_os_string().into_string().unwrap();
-            if bc_string_name.starts_with(deps_dir.join(&crate_name).to_str().unwrap()) {
-                main_bc = bc_string_name;
-            } else {
-                bc_files.push(bc_string_name);
-            }
+    for path in search_results.flatten() {
+        let bc_string_name = path.into_os_string().into_string().unwrap();
+        if bc_string_name.starts_with(deps_dir.join(&crate_name).to_str().unwrap()) {
+            main_bc = bc_string_name;
+        } else {
+            bc_files.push(bc_string_name);
         }
     }
     dbg!(&bc_files);
@@ -219,7 +218,7 @@ fn generate_grad_function(
     let auto_diff = AutoDiff::new(type_analysis);
 
     let mut grad_fncs = vec![];
-    let opt_grads = if cfg!(debug_assertions) { false } else { true };
+    let opt_grads = !cfg!(debug_assertions); // There should be a better solution
     for (&mut fnc, (param_info, grad_name)) in functions.iter_mut().zip(param_infos.iter_mut().zip(grad_names.iter())) {
         dbg!(grad_name);
         let grad_func: LLVMValueRef = auto_diff.create_primal_and_gradient(
@@ -229,7 +228,7 @@ fn generate_grad_function(
             opt_grads
         ) as LLVMValueRef;
         dbg!("Generated gradient function");
-        grad_fncs.push(grad_func.clone());
+        grad_fncs.push(grad_func);
         let llvm_grad_fnc_type = unsafe{ LLVMTypeOf(grad_func) };
         dbg!(get_type(llvm_grad_fnc_type));
         dbg!(unsafe{LLVMCountParams(grad_func)});
@@ -284,7 +283,7 @@ fn remove_U_symbols(
         let grad_name = &grad_names[i];
 
         // rename grad fnc to tmp name (to not hide equally named undef symbols anymore)
-        let tmp = "tmp_diffe".to_owned() + &grad_name;
+        let tmp = "tmp_diffe".to_owned() + grad_name;
         let c_tmp = CString::new(tmp.clone()).unwrap();
         unsafe {
             LLVMSetValueName2(grad_functions[i], c_tmp.as_ptr(), tmp.len() as usize);
@@ -308,10 +307,10 @@ fn remove_U_symbols(
             let u_return_type = LLVMGetReturnType(LLVMGetElementType(u_type));
             let f_return_type = LLVMGetReturnType(LLVMGetElementType(f_type));
 
-            let u_type_string = CString::from_raw(LLVMPrintTypeToString(u_type.clone()));
-            let f_type_string = CString::from_raw(LLVMPrintTypeToString(f_type.clone()));
-            let u_ret_type_string = CString::from_raw(LLVMPrintTypeToString(u_return_type.clone()));
-            let f_ret_type_string = CString::from_raw(LLVMPrintTypeToString(f_return_type.clone()));
+            let u_type_string = CString::from_raw(LLVMPrintTypeToString(u_type));
+            let f_type_string = CString::from_raw(LLVMPrintTypeToString(f_type));
+            let u_ret_type_string = CString::from_raw(LLVMPrintTypeToString(u_return_type));
+            let f_ret_type_string = CString::from_raw(LLVMPrintTypeToString(f_return_type));
 
             if u_type != f_type {
                 dbg!("Some type missmatch happened for ".to_owned()+&grad_names[i]);
@@ -420,7 +419,8 @@ fn globalize_grad_symbols(module: LLVMModuleRef, grad_fnc_names: Vec<String>) {
     }
 }
 
-fn verify_argument_len(functions: &Vec<LLVMValueRef>, 
+//fn verify_argument_len(functions: &Vec<LLVMValueRef>, 
+fn verify_argument_len(functions: &[LLVMValueRef], 
                        fnc_names: Vec<String>, grad_names: Vec<String>, 
                        activity_vecs: Vec<ParamInfos>) {
 
@@ -454,10 +454,10 @@ fn list_functions(module: LLVMModuleRef) -> Vec<LLVMValueRef> {
             panic!("Found no symbols in module");
         }
         while symbol != last_symbol {
-            res.push(symbol.clone());
+            res.push(symbol);
             symbol = LLVMGetNextFunction(symbol);
         }
-        return res;
+        res
     }
 }
 
@@ -481,11 +481,9 @@ fn remove_functions(fncs: Vec<LLVMValueRef>) {
 fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     let entry_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let out_obj = entry_path
-        .clone()
         .with_file_name("result")
         .with_extension("o");
     let out_archive = entry_path
-        .clone()
         .join("libGradFunc.a")
         .into_os_string()
         .into_string()

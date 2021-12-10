@@ -93,15 +93,17 @@ pub enum CDIFFE_RETTYPE {
 // The Enzyme API is too unspecific for the return type, so we introduced
 // the stricter CDIFFE_RETTYPE to not allow types which are illegal for
 // the ret activity. Enzyme doesn't know this type, so we match it back.
-impl Into<CDIFFE_TYPE> for CDIFFE_RETTYPE {
-    fn into(self) -> CDIFFE_TYPE {
-        match self {
+// We should add the capability to enzyme to also support DUP_ARG on merged
+// forward+reverse however. 
+impl From<CDIFFE_RETTYPE> for CDIFFE_TYPE {
+    fn from(ret_type: CDIFFE_RETTYPE) -> CDIFFE_TYPE {
+        match ret_type {
             CDIFFE_RETTYPE::DFT_OUT_DIFF => CDIFFE_TYPE::DFT_OUT_DIFF,
             CDIFFE_RETTYPE::DFT_CONSTANT => CDIFFE_TYPE::DFT_CONSTANT,
         }
     }
-
 }
+
 
 pub struct AutoDiff {
     logic_ref: EnzymeLogicRef,

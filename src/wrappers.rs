@@ -1,9 +1,13 @@
-use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyFunction, LLVMVerifyModule};
+use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyModule};
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
 use std::ffi::{CString, CStr};
 use std::ptr;
 use crate::get_type;
+
+// We probably should add some use of LLVMVerifyFunction, at least while developing 
+#[allow(unused_imports)]
+use llvm_sys::analysis::LLVMVerifyFunction;
 
 // Our Gradient fnc is returning a struct containing one element.
 // Our Rust code expects a function returning the element, without the struct
@@ -26,7 +30,7 @@ pub unsafe fn extract_return_type(
     let inner_fnc_name = "struct_".to_string() + &fnc_name;
     let c_inner_fnc_name = CString::new(inner_fnc_name.clone()).unwrap();
     let outer_fnc_name = fnc_name;
-    let c_outer_fnc_name = CString::new(outer_fnc_name.clone()).unwrap();
+    let c_outer_fnc_name = CString::new(outer_fnc_name).unwrap();
     let new_fnc: LLVMValueRef = LLVMAddFunction(
         module,
         c_outer_fnc_name.as_ptr(),
@@ -39,7 +43,7 @@ pub unsafe fn extract_return_type(
     );
 
     let entry = "fnc_entry".to_string();
-    let c_entry = CString::new(entry.clone()).unwrap();
+    let c_entry = CString::new(entry).unwrap();
     let basic_block = LLVMAppendBasicBlockInContext(context, new_fnc, c_entry.as_ptr());
     let mut fnc_args: Vec<LLVMValueRef> = vec![];
     fnc_args.reserve(param_num as usize);
@@ -54,9 +58,10 @@ pub unsafe fn extract_return_type(
         param_num,
         c_inner_fnc_name.as_ptr(),
     );
-    let foo = "foo".to_string();
-    let c_foo = CString::new(foo.clone()).unwrap();
-    let struct_ret = LLVMBuildExtractValue(builder, struct_ret, 0, c_foo.as_ptr());
+    // We can use an arbitrary name here, since it will be an internal wrapper
+    let inner_grad_name = "foo".to_string();
+    let c_inner_grad_name = CString::new(inner_grad_name).unwrap();
+    let struct_ret = LLVMBuildExtractValue(builder, struct_ret, 0, c_inner_grad_name.as_ptr());
     let _ret = LLVMBuildRet(builder, struct_ret);
     let _terminator = LLVMGetBasicBlockTerminator(basic_block);
     //assert!(LLVMIsNull(terminator)!=0, "no terminator");
