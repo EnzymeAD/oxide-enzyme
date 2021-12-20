@@ -16,3 +16,16 @@ jobs:
           BUILD_DIR: docs/website/
           # Provide personal access token
           TOKEN: ${{ secrets.TOKEN }}
+
+on: pull_request
+name: Run cargo-fmt
+jobs: 
+  testing:
+    name: fmt
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v2      
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
