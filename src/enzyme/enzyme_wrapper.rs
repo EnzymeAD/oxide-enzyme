@@ -1,14 +1,17 @@
 // TODO: Verify wether to import the LLVM* from enzyme_sys, or from llvm-sys
-use enzyme_sys::{LLVMValueRef, CreateTypeAnalysis, CreateEnzymeLogic, EnzymeSetCLBool};
-use enzyme_sys::{EnzymeLogicRef, FreeEnzymeLogic, EnzymeCreatePrimalAndGradient, CFnTypeInfo, IntList, EnzymeTypeAnalysisRef, CDerivativeMode};
+use enzyme_sys::{
+    CDerivativeMode, CFnTypeInfo, EnzymeCreatePrimalAndGradient, EnzymeLogicRef,
+    EnzymeTypeAnalysisRef, FreeEnzymeLogic, IntList,
+};
+use enzyme_sys::{CreateEnzymeLogic, CreateTypeAnalysis, EnzymeSetCLBool, LLVMValueRef};
 pub use enzyme_sys::{LLVMOpaqueContext, LLVMOpaqueValue, CDIFFE_TYPE};
 
 use super::enzyme_sys;
 use super::tree::TypeTree;
 
 use std::ffi::CString;
-use std::ptr;
 use std::os::raw::c_void;
+use std::ptr;
 
 pub fn enzyme_print_activity(val: bool) {
     #[link(name = "Enzyme-13")]
@@ -64,37 +67,42 @@ impl FncInfo {
     /// ret_info should be None if the primary function has no return type.
     /// Otherwise it should specify if we want the output's gradient and if we want
     /// the return value of the primal rust function.
-    pub fn new(primary_name: &str, grad_name: &str, input_activity: Vec<CDIFFE_TYPE>, ret_info: Option<(CDIFFE_RETTYPE, bool)>) -> FncInfo {
-        FncInfo { 
-            primary_name: primary_name.to_string(), 
-            grad_name: grad_name.to_string(), 
-            params: ParamInfos {input_activity, ret_info},
+    pub fn new(
+        primary_name: &str,
+        grad_name: &str,
+        input_activity: Vec<CDIFFE_TYPE>,
+        ret_info: Option<(CDIFFE_RETTYPE, bool)>,
+    ) -> FncInfo {
+        FncInfo {
+            primary_name: primary_name.to_string(),
+            grad_name: grad_name.to_string(),
+            params: ParamInfos {
+                input_activity,
+                ret_info,
+            },
         }
     }
 }
 
-
 pub fn create_empty_type_analysis() -> EnzymeTypeAnalysisRef {
     let platform: String = std::env::var("TARGET").unwrap();
     let tripple = CString::new(platform).unwrap().into_raw();
-    unsafe {
-      CreateTypeAnalysis(tripple, std::ptr::null_mut(), std::ptr::null_mut(), 0)
-    }
+    unsafe { CreateTypeAnalysis(tripple, std::ptr::null_mut(), std::ptr::null_mut(), 0) }
 }
 
 #[allow(non_camel_case_types)]
-#[repr(u32)]  
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]  
-pub enum CDIFFE_RETTYPE {  
-    DFT_OUT_DIFF = CDIFFE_TYPE::DFT_OUT_DIFF as u32,  
-    DFT_CONSTANT = CDIFFE_TYPE::DFT_CONSTANT as u32,  
-}  
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum CDIFFE_RETTYPE {
+    DFT_OUT_DIFF = CDIFFE_TYPE::DFT_OUT_DIFF as u32,
+    DFT_CONSTANT = CDIFFE_TYPE::DFT_CONSTANT as u32,
+}
 
 // The Enzyme API is too unspecific for the return type, so we introduced
 // the stricter CDIFFE_RETTYPE to not allow types which are illegal for
 // the ret activity. Enzyme doesn't know this type, so we match it back.
 // We should add the capability to enzyme to also support DUP_ARG on merged
-// forward+reverse however. 
+// forward+reverse however.
 impl From<CDIFFE_RETTYPE> for CDIFFE_TYPE {
     fn from(ret_type: CDIFFE_RETTYPE) -> CDIFFE_TYPE {
         match ret_type {
@@ -104,24 +112,27 @@ impl From<CDIFFE_RETTYPE> for CDIFFE_TYPE {
     }
 }
 
-
 pub struct AutoDiff {
     logic_ref: EnzymeLogicRef,
-    type_analysis: EnzymeTypeAnalysisRef
+    type_analysis: EnzymeTypeAnalysisRef,
 }
 
 impl AutoDiff {
     pub fn new(type_analysis: EnzymeTypeAnalysisRef) -> AutoDiff {
-        
         let logic_ref = unsafe { CreateEnzymeLogic() };
-        AutoDiff { logic_ref, type_analysis }
+        AutoDiff {
+            logic_ref,
+            type_analysis,
+        }
     }
 
     pub fn create_primal_and_gradient(
-        &self, fnc_todiff: LLVMValueRef, args_activity: &mut [CDIFFE_TYPE], 
-        ret_info: Option<(CDIFFE_RETTYPE, bool)>, opt: bool) -> LLVMValueRef
-    {
-
+        &self,
+        fnc_todiff: LLVMValueRef,
+        args_activity: &mut [CDIFFE_TYPE],
+        ret_info: Option<(CDIFFE_RETTYPE, bool)>,
+        opt: bool,
+    ) -> LLVMValueRef {
         let (ret_activity, ret_primary_ret) = match ret_info {
             None => (CDIFFE_TYPE::DFT_CONSTANT, false as u8),
             Some((activity, ret_primary_ret)) => (activity.into(), ret_primary_ret as u8),
@@ -133,7 +144,7 @@ impl AutoDiff {
 
         // We don't support volatile / extern / (global?) values.
         // Just because I didn't had time to test them, and it seems less urgent.
-        let mut args_uncacheable = vec![0;args_activity.len()];
+        let mut args_uncacheable = vec![0; args_activity.len()];
 
         //let ret = tree::TypeTree::from_type(CConcreteType::DT_Float, context).prepend(0);
         let ret = TypeTree::new();
@@ -143,7 +154,7 @@ impl AutoDiff {
             size: 0,
         };
 
-        let mut known_values = vec![kv_tmp;args_activity.len()];
+        let mut known_values = vec![kv_tmp; args_activity.len()];
 
         let dummy_type = CFnTypeInfo {
             Arguments: args_tree.as_mut_ptr(),
@@ -155,14 +166,21 @@ impl AutoDiff {
         let res = unsafe {
             EnzymeCreatePrimalAndGradient(
                 self.logic_ref, // Logic
-                fnc_todiff, ret_activity, // LLVM function, return type
-                args_activity.as_mut_ptr(), args_activity.len() as u64, // constant arguments
-                self.type_analysis, // type analysis struct
-                ret_primary_ret as u8, 0, CDerivativeMode::DEM_ReverseModeCombined, // return value, dret_used, top_level which was 1
-                ptr::null_mut(), dummy_type, // additional_arg, type info (return + args)
-                args_uncacheable.as_mut_ptr(), args_uncacheable.len() as u64, // uncacheable arguments
-                ptr::null_mut(), // write augmented function to this
-                0, opt as u8 // atomic_add, post_opt
+                fnc_todiff,
+                ret_activity, // LLVM function, return type
+                args_activity.as_mut_ptr(),
+                args_activity.len() as u64, // constant arguments
+                self.type_analysis,         // type analysis struct
+                ret_primary_ret as u8,
+                0,
+                CDerivativeMode::DEM_ReverseModeCombined, // return value, dret_used, top_level which was 1
+                ptr::null_mut(),
+                dummy_type, // additional_arg, type info (return + args)
+                args_uncacheable.as_mut_ptr(),
+                args_uncacheable.len() as u64, // uncacheable arguments
+                ptr::null_mut(),               // write augmented function to this
+                0,
+                opt as u8, // atomic_add, post_opt
             )
         };
         dbg!("after-ad");

@@ -1,11 +1,11 @@
+use crate::get_type;
 use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyModule};
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
-use std::ffi::{CString, CStr};
+use std::ffi::{CStr, CString};
 use std::ptr;
-use crate::get_type;
 
-// We probably should add some use of LLVMVerifyFunction, at least while developing 
+// We probably should add some use of LLVMVerifyFunction, at least while developing
 #[allow(unused_imports)]
 use llvm_sys::analysis::LLVMVerifyFunction;
 

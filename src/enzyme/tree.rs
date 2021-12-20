@@ -1,10 +1,13 @@
 use std::ffi::CStr;
 use std::fmt;
 
-use super::enzyme_sys::{CTypeTreeRef, EnzymeFreeTypeTree, EnzymeNewTypeTree, EnzymeTypeTreeToString, EnzymeTypeTreeToStringFree};
+use super::enzyme_sys::{
+    CTypeTreeRef, EnzymeFreeTypeTree, EnzymeNewTypeTree, EnzymeTypeTreeToString,
+    EnzymeTypeTreeToStringFree,
+};
 
 pub struct TypeTree {
-    pub inner: CTypeTreeRef
+    pub inner: CTypeTreeRef,
 }
 
 // Covered:
@@ -26,13 +29,12 @@ pub struct TypeTree {
 // CreateTypeAnalysis
 // ClearTypeAnalysis
 // FreeTypeAnalysis
-// 
+//
 // Logic part:
 // CreateEnzymeLogic
 // ClearEnzymeLogic
 // FreeEnzymeLogic
-// 
-
+//
 
 // NOT Covered, relevant?:
 // EnzymeNewTypeTreeTR
@@ -55,21 +57,15 @@ impl TypeTree {
 
 impl fmt::Display for TypeTree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ptr = unsafe { 
-                EnzymeTypeTreeToString(self.inner)
-        };
-        let cstr = unsafe {
-            CStr::from_ptr(ptr)
-        };
+        let ptr = unsafe { EnzymeTypeTreeToString(self.inner) };
+        let cstr = unsafe { CStr::from_ptr(ptr) };
         match cstr.to_str() {
             Ok(x) => write!(f, "{}", x)?,
-            Err(err) => write!(f, "could not parse: {}", err)?
+            Err(err) => write!(f, "could not parse: {}", err)?,
         }
 
         // delete C string pointer
-        unsafe {
-            EnzymeTypeTreeToStringFree(ptr)
-        }
+        unsafe { EnzymeTypeTreeToStringFree(ptr) }
 
         Ok(())
     }
@@ -77,9 +73,7 @@ impl fmt::Display for TypeTree {
 
 impl Drop for TypeTree {
     fn drop(&mut self) {
-        unsafe {
-            EnzymeFreeTypeTree(self.inner)
-        }
+        unsafe { EnzymeFreeTypeTree(self.inner) }
     }
 }
 
@@ -104,13 +98,11 @@ mod tests {
 
         assert_eq!(n1.to_string(), "{[0,1]:Pointer}");
 
-        let n2 = TypeTree::from_type(CConcreteType::DT_Float, context)
-            .prepend(2);
+        let n2 = TypeTree::from_type(CConcreteType::DT_Float, context).prepend(2);
 
         assert_eq!(n2.to_string(), "{[2]:Float@float}");
 
-        let n3 = n1.merge_with(n2)
-            .prepend(4);
+        let n3 = n1.merge_with(n2).prepend(4);
 
         assert_eq!(n3.to_string(), "{[4,0,1]:Pointer, [4,2]:Float@float}");
     }
