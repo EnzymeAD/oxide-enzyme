@@ -13,11 +13,7 @@ use llvm_sys::analysis::LLVMVerifyFunction;
 // Our Rust code expects a function returning the element, without the struct
 // We create a new (identical) fnc which only differs in returning T rather than { T }.
 // All it does is call enzyme's grad fnc and extract T from the struct, forwarding it.
-pub unsafe fn extract_return_type(
-    module: LLVMModuleRef,
-    context: LLVMContextRef,
-    fnc: LLVMValueRef,
-    u_type: LLVMTypeRef,
+pub unsafe fn extract_return_type(    module: LLVMModuleRef,     context: LLVMContextRef,     fnc: LLVMValueRef,     u_type: LLVMTypeRef,
     f_type: LLVMTypeRef,
     fnc_name: String,
 ) -> LLVMValueRef {
