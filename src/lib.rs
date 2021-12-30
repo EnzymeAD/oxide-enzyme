@@ -14,6 +14,7 @@ use glob::glob;
 use std::process::Command;
 
 mod enzyme;
+mod verify;
 mod wrappers;
 use enzyme::{create_empty_type_analysis, AutoDiff, LLVMOpaqueValue, ParamInfos};
 pub use enzyme::{enzyme_print_activity, enzyme_print_functions, enzyme_print_type};
@@ -297,10 +298,10 @@ fn remove_U_symbols(
             let u_return_type = LLVMGetReturnType(LLVMGetElementType(u_type));
             let f_return_type = LLVMGetReturnType(LLVMGetElementType(f_type));
 
-            let u_type_string = CString::from_raw(LLVMPrintTypeToString(u_type));
-            let f_type_string = CString::from_raw(LLVMPrintTypeToString(f_type));
-            let u_ret_type_string = CString::from_raw(LLVMPrintTypeToString(u_return_type));
-            let f_ret_type_string = CString::from_raw(LLVMPrintTypeToString(f_return_type));
+            let u_type_string = get_type(u_type);
+            let f_type_string = get_type(f_type);
+            let u_ret_type_string = get_type(u_return_type);
+            let f_ret_type_string = get_type(f_return_type);
 
             if u_type != f_type {
                 dbg!("Some type missmatch happened for ".to_owned() + &grad_names[i]);
@@ -324,17 +325,21 @@ fn remove_U_symbols(
                     );
                 }
                 */
+                if LLVMCountStructElementTypes(f_return_type) == 1 {
+                    // Here we check for the third change, rust will expect T instead of { T },
+                    // for generated functions which only return exactly one variable in a struct.
+                    grad_functions[i] = wrappers::extract_return_type(
+                        module,
+                        context,
+                        grad_functions[i],
+                        u_type,
+                        f_type,
+                        grad_name.clone(),
+                    );
+                    continue;
+                }
 
-                // Here we check for the third change, rust will expect T instead of { T },
-                // for generated functions which only return exactly one variable in a struct.
-                grad_functions[i] = wrappers::extract_return_type(
-                    module,
-                    context,
-                    grad_functions[i],
-                    u_type,
-                    f_type,
-                    grad_name.clone(),
-                );
+                panic!("Unhandled type missmatch. Please report this.");
             }
 
             // Clean up
@@ -411,50 +416,6 @@ fn globalize_grad_symbols(module: LLVMModuleRef, grad_fnc_names: Vec<String>) {
     }
 }
 
-//fn verify_argument_len(functions: &Vec<LLVMValueRef>,
-fn verify_argument_len(
-    functions: &[LLVMValueRef],
-    fnc_names: Vec<String>,
-    grad_names: Vec<String>,
-    activity_vecs: Vec<ParamInfos>,
-) {
-    assert_eq!(
-        functions.len(),
-        fnc_names.len(),
-        "Programmer bug, please report this message on Github"
-    );
-    assert_eq!(
-        functions.len(),
-        grad_names.len(),
-        "Programmer bug, please report this message on Github"
-    );
-    assert_eq!(
-        functions.len(),
-        activity_vecs.len(),
-        "Programmer bug, please report this message on Github"
-    );
-
-    for i in 0..functions.len() {
-        let fnc = functions[i];
-        let act = &activity_vecs[i];
-        let primary_fnc_name = &fnc_names[i];
-        let grad_fnc_name = &grad_names[i];
-
-        let num_primary_parameters;
-        unsafe {
-            num_primary_parameters = LLVMCountParams(fnc);
-        }
-        let num_activity_infos = act.input_activity.len() as u32;
-        assert_eq!(
-            num_primary_parameters, num_activity_infos,
-            "Missmatch while generating {} from function {}.
-            Please specify exactly one activity (CDIFFE_TYPE) value 
-            for each of the input parameters of your primary function.",
-            grad_fnc_name, primary_fnc_name
-        );
-    }
-}
-
 fn list_functions(module: LLVMModuleRef) -> Vec<LLVMValueRef> {
     unsafe {
         let mut res = vec![];
@@ -483,6 +444,7 @@ fn remove_functions(fncs: Vec<LLVMValueRef>) {
             }
             // LLVMDeleteFunction(fnc); // Breaks other things
             // TODO: Something like LLVMVerifyFunction(fnc);
+            // or probably better LLVMVerifyModule
         }
     }
 }
@@ -498,7 +460,7 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
 
     // Let's split it up so we can just pass those values which ufnction need.
     let (mut primary_names, mut grad_names, mut parameter_informations) = (vec![], vec![], vec![]);
-    for info in primary_fnc_infos {
+    for info in primary_fnc_infos.clone() {
         primary_names.push(info.primary_name);
         grad_names.push(info.grad_name);
         parameter_informations.push(info.params);
@@ -526,14 +488,9 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     // We are loading the existing primary functions, to pass them to enzyme.
     let functions = load_primary_functions(module, primary_names.clone());
 
-    // Enzyme might deduce some things, but lets make it explicit. One activity information for
-    // each input parameter.
-    verify_argument_len(
-        &functions,
-        primary_names.clone(),
-        grad_names.clone(),
-        parameter_informations.clone(),
-    );
+    if let Err(e) = verify::verify(primary_fnc_infos, functions.clone()) {
+        panic!("The primary function which you wrote does not work with the FncInfo which you gave! {}", e);
+    }
 
     // Now we generate the gradients based on our input and the selected activity values for
     // their parameters
