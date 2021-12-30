@@ -2,7 +2,7 @@ use crate::FncInfo;
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
 
-unsafe fn verify_single(info: &FncInfo, fnc_type: LLVMTypeRef) -> Result<LLVMTypeRef, String> {
+unsafe fn verify_single(info: &FncInfo, fnc_type: LLVMTypeRef) -> Result<(), String> {
     let return_type = LLVMGetReturnType(LLVMGetElementType(fnc_type));
 
     let num_parameters = LLVMCountParamTypes(fnc_type);
@@ -31,16 +31,10 @@ unsafe fn verify_single(info: &FncInfo, fnc_type: LLVMTypeRef) -> Result<LLVMTyp
 
     // 4. (optional) check for LLVMFloatType in params.
 
-    // Now start generating output type
-
-    //
-    unreachable!()
+    Ok(())
 }
 
-pub fn verify(
-    infos: Vec<FncInfo>,
-    primary_functions: Vec<LLVMValueRef>,
-) -> Result<Vec<LLVMTypeRef>, String> {
+pub fn verify(infos: Vec<FncInfo>, primary_functions: Vec<LLVMValueRef>) -> Result<(), String> {
     if infos.len() != primary_functions.len() {
         let error_msg = format!(
             "Number of primary functions and function informations differ. \
@@ -64,17 +58,11 @@ pub fn verify(
         return Err(error_msg.to_string());
     }
 
-    let mut grad_type_refs: Vec<LLVMTypeRef> = vec![];
     for (info, &fnc) in infos.iter().zip(primary_functions.iter()) {
         unsafe {
             let fnc_type = LLVMTypeOf(fnc);
-            match verify_single(info, fnc_type) {
-                Ok(t) => grad_type_refs.push(t),
-                Err(e) => {
-                    return Err(format!("Error in function {}: {}", info.primary_name, e));
-                }
-            }
+            verify_single(info, fnc_type)?;
         }
     }
-    Ok(grad_type_refs)
+    Ok(())
 }
