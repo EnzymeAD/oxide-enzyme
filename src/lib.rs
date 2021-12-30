@@ -305,26 +305,30 @@ fn remove_U_symbols(
 
             if u_type != f_type {
                 dbg!("Some type missmatch happened for ".to_owned() + &grad_names[i]);
-                dbg!(u_type_string);
-                dbg!(f_type_string);
+                dbg!(&u_type_string);
+                dbg!(&f_type_string);
                 dbg!(u_ret_type_string);
                 dbg!(f_ret_type_string);
                 dbg!();
                 // Type mismatch which we should fix
 
                 // TODO: Check for 2xf32 -> 1xf64 changes
-                //
-                // TODO: Check for Generated functions returning more than 2xf64 in a struct,
-                // as such structs will be moved into the function
 
-                /*
-                if LLVMCountStructElementTypes(f_return_type) != 1 {
-                    panic!(
-                        "Return struct contains more than one element. u: {:?}, f: {:?}",
-                        u_type_string, f_type_string
+                if LLVMCountStructElementTypes(f_return_type) > 2 {
+                    // The C-Abi will change a function returning a struct with more than
+                    // two float values by returning void and moving the actual return struct
+                    // into the parameter list, at the first position.
+                    grad_functions[i] = wrappers::move_return_into_args(
+                        module,
+                        context,
+                        grad_functions[i],
+                        u_type,
+                        f_type,
+                        grad_name.clone(),
                     );
+                    continue;
                 }
-                */
+
                 if LLVMCountStructElementTypes(f_return_type) == 1 {
                     // Here we check for the third change, rust will expect T instead of { T },
                     // for generated functions which only return exactly one variable in a struct.
@@ -503,7 +507,7 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     remove_functions(junk_fnc);
 
     // Some magic to make the symbols link together nicely
-    //
+
     // First, some magic to handle ffi
     remove_U_symbols(module, context, &mut grad_fncs, grad_names.clone());
     // Next, we localize all symbols, since we only want to expose the newly generated functions
