@@ -1,16 +1,16 @@
 use crate::FncInfo;
+use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyFunction, LLVMVerifyModule};
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
+use std::ffi::CStr;
+use std::ptr;
 
 unsafe fn verify_single(info: &FncInfo, fnc_type: LLVMTypeRef) -> Result<(), String> {
     let fnc_type = LLVMGetElementType(fnc_type);
-    dbg!(1);
     let return_type = LLVMGetReturnType(fnc_type);
 
-    dbg!(2);
     let num_parameters = LLVMCountParamTypes(fnc_type);
 
-    dbg!(3);
     let mut parameter_types: Vec<LLVMTypeRef> = vec![];
     parameter_types.reserve(num_parameters as usize);
     LLVMGetParamTypes(fnc_type, parameter_types.as_mut_ptr());
@@ -35,12 +35,15 @@ unsafe fn verify_single(info: &FncInfo, fnc_type: LLVMTypeRef) -> Result<(), Str
         return Err(error_msg);
     }
 
-    // 4. (optional) check for LLVMFloatType in params.
+    // 3. (optional) check for LLVMFloatType in params.
 
     Ok(())
 }
 
-pub fn verify(infos: Vec<FncInfo>, primary_functions: Vec<LLVMValueRef>) -> Result<(), String> {
+pub fn verify_user_inputs(
+    infos: Vec<FncInfo>,
+    primary_functions: Vec<LLVMValueRef>,
+) -> Result<(), String> {
     dbg!("First global check");
     if infos.len() != primary_functions.len() {
         let error_msg = format!(
@@ -60,10 +63,15 @@ pub fn verify(infos: Vec<FncInfo>, primary_functions: Vec<LLVMValueRef>) -> Resu
     unique_grad_names.sort();
     unique_grad_names.dedup();
     dbg!("Second global check");
-    if grad_names.len() != unique_grad_names.len() {
-        let error_msg =
-            "Please only use unique names for your functions. Double-check your build.rs file.";
-        return Err(error_msg.to_string());
+    for i in 0..(unique_grad_names.len() - 1) {
+        if unique_grad_names[i] == unique_grad_names[i + 1] {
+            let error_msg = format!(
+                "You are assigning multiple gradient functions to {}. \
+                             Please double-check your build.rs file.",
+                unique_grad_names[i]
+            );
+            return Err(error_msg);
+        }
     }
 
     dbg!("Moving to local checks");
@@ -72,6 +80,33 @@ pub fn verify(infos: Vec<FncInfo>, primary_functions: Vec<LLVMValueRef>) -> Resu
             let fnc_type = LLVMTypeOf(fnc);
             verify_single(info, fnc_type)?;
         }
+    }
+    Ok(())
+}
+
+pub unsafe fn verify_function(fnc: LLVMValueRef) -> Result<(), String> {
+    let fnc_ok = LLVMVerifyFunction(fnc, LLVMVerifierFailureAction::LLVMAbortProcessAction) == 0;
+    if fnc_ok {
+        Ok(())
+    } else {
+        Err("Could not validate function!".to_string())
+    }
+}
+
+pub unsafe fn verify_module(module: LLVMModuleRef) -> Result<(), String> {
+    let mut msg = ptr::null_mut();
+    let module_ok = LLVMVerifyModule(
+        module,
+        LLVMVerifierFailureAction::LLVMReturnStatusAction,
+        &mut msg,
+    ) == 0;
+    if !module_ok {
+        let c_msg = CStr::from_ptr(msg)
+            .to_str()
+            .expect("This msg should have been created by llvm!");
+        let error_msg = "Could not validate module!".to_owned() + c_msg;
+        LLVMDisposeMessage(msg);
+        return Err(error_msg);
     }
     Ok(())
 }

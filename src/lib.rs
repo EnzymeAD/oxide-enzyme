@@ -2,7 +2,6 @@ use std::ffi::{CStr, CString};
 use std::path::{Path, PathBuf};
 use std::{env, fs, ptr};
 
-use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyModule};
 use llvm_sys::core::*;
 use llvm_sys::ir_reader::LLVMParseIRInContext;
 use llvm_sys::prelude::*;
@@ -179,16 +178,15 @@ fn read_bc_files(fnc_names: Vec<String>) -> (LLVMModuleRef, LLVMContextRef) {
             LLVMParseIRInContext(context, memory_buf, &mut module, &mut msg) == 0,
             "Could not create module!"
         );
-        assert!(
-            LLVMVerifyModule(
-                module,
-                LLVMVerifierFailureAction::LLVMReturnStatusAction,
-                &mut msg
-            ) == 0,
-            "Could not validate!"
-        );
-
         LLVMDisposeMessage(msg);
+
+        if let Err(e) = verify::verify_module(module) {
+            panic!(
+                "The input module was already broken. Please report this! {}",
+                e
+            );
+        }
+
         (module, context)
     }
 }
@@ -270,7 +268,7 @@ fn print_ffi_type(module: LLVMModuleRef, ffi_names: Vec<String>) {
 }
 
 #[allow(non_snake_case)]
-fn remove_U_symbols(
+fn handle_ffi(
     module: LLVMModuleRef,
     context: LLVMContextRef,
     grad_functions: &mut [LLVMValueRef],
@@ -290,7 +288,12 @@ fn remove_U_symbols(
         let c_fnc_name = CString::new(grad_name.clone()).unwrap();
         // get the U(ndefined) fnc symbol
         let u_fnc: LLVMValueRef = unsafe { LLVMGetNamedFunction(module, c_fnc_name.as_ptr()) };
-        assert_ne!(u_fnc as usize, 0, "couldn't get undef symbol {}", grad_name);
+        assert_ne!(
+            u_fnc as usize, 0,
+            "Couldn't get undef symbol {}. \
+                   Do you declare your gradient function in an extern block?",
+            grad_name
+        );
 
         unsafe {
             let u_type: LLVMTypeRef = LLVMTypeOf(u_fnc);
@@ -312,7 +315,7 @@ fn remove_U_symbols(
                 if num_elem_in_ret_struct > 2 {
                     dbg!("move_return_into_args");
                     // The C-Abi will change a function returning a struct with more than
-                    // two float values by returning void and moving the actual return struct
+                    // two double values by returning void and moving the actual return struct
                     // into the parameter list, at the first position.
                     grad_functions[i] = wrappers::move_return_into_args(
                         module,
@@ -322,11 +325,10 @@ fn remove_U_symbols(
                         f_type,
                         grad_name.clone(),
                     );
-                    //continue;
                 } else if num_elem_in_ret_struct == 1 {
                     dbg!("extract_return_type");
-                    // Here we check for the third change, rust will expect T instead of { T },
-                    // for generated functions which only return exactly one variable in a struct.
+                    // The C-Abi will change a function returning a struct { double } with exactly
+                    // one double value to just return the double, stripping the struct.
                     grad_functions[i] = wrappers::extract_return_type(
                         module,
                         context,
@@ -335,7 +337,6 @@ fn remove_U_symbols(
                         f_type,
                         grad_name.clone(),
                     );
-                    //continue;
                 } else {
                     panic!("Unhandled type missmatch. Please report this.");
                 }
@@ -434,6 +435,10 @@ fn remove_functions(fncs: Vec<LLVMValueRef>) {
                 LLVMDeleteBasicBlock(block);
                 // LLVMRemoveBasicBlockFromParent(block);
             }
+            if let Err(e) = verify::verify_function(fnc) {
+                panic!("Creating a wrapper function failed! {}", e);
+            }
+
             // LLVMDeleteFunction(fnc); // Breaks other things
             // TODO: Something like LLVMVerifyFunction(fnc);
             // or probably better LLVMVerifyModule
@@ -480,7 +485,7 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     // We are loading the existing primary functions, to pass them to enzyme.
     let functions = load_primary_functions(module, primary_names.clone());
 
-    if let Err(e) = verify::verify(primary_fnc_infos, functions.clone()) {
+    if let Err(e) = verify::verify_user_inputs(primary_fnc_infos, functions.clone()) {
         panic!("The primary function which you wrote does not work with the FncInfo which you gave! {}", e);
     }
 
@@ -489,7 +494,7 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     enzyme_print_type(cfg!(debug_assertions)); // print generated functions in debug mode
     let mut grad_fncs =
         generate_grad_function(functions, grad_names.clone(), parameter_informations);
-    enzyme_print_type(false); //
+    enzyme_print_type(false);
 
     // Now that we have the gradients, lets clean up
     remove_functions(junk_fnc);
@@ -497,7 +502,17 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     // Some magic to make the symbols link together nicely
 
     // First, some magic to handle ffi
-    remove_U_symbols(module, context, &mut grad_fncs, grad_names.clone());
+    handle_ffi(module, context, &mut grad_fncs, grad_names.clone());
+
+    // The next step breaks some module rules, but is necessary to not multiple symbol definitions.
+    // So we check our module for other issues before.
+    if let Err(e) = unsafe { verify::verify_module(module) } {
+        panic!(
+            "Apparently we broke the module while working on it. Please report this! {}",
+            e
+        );
+    }
+
     // Next, we localize all symbols, since we only want to expose the newly generated functions
     localize_all_symbols(module);
     // Finaly, we expose those new functiosn

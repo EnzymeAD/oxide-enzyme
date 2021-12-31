@@ -1,9 +1,8 @@
 use crate::get_type;
-use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyFunction, LLVMVerifyModule};
+use crate::verify::verify_function;
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
-use std::ffi::{CStr, CString};
-use std::ptr;
+use std::ffi::CString;
 
 pub unsafe fn move_return_into_args(
     module: LLVMModuleRef,
@@ -20,7 +19,7 @@ pub unsafe fn move_return_into_args(
     let (outer_fnc, outer_bb, mut outer_args, inner_args, c_inner_fnc_name) =
         create_wrapper(module, context, fnc, u_type, fnc_name);
 
-    let inner_ret_type = LLVMGetReturnType(LLVMGetElementType(f_type));
+    let _inner_ret_type = LLVMGetReturnType(LLVMGetElementType(f_type));
     let outer_ret_type = LLVMGetReturnType(LLVMGetElementType(u_type));
     if outer_ret_type != LLVMVoidTypeInContext(context) {
         let is = CString::from_raw(LLVMPrintTypeToString(outer_ret_type));
@@ -41,9 +40,10 @@ pub unsafe fn move_return_into_args(
     }
 
     let mut input_args = outer_args.split_off(1);
-    let out_extra_arg = LLVMTypeOf(outer_args[0]);
+    let _out_extra_arg = LLVMTypeOf(outer_args[0]);
 
     /*
+     * TODO: Find out how to fix this check
     // the out_extra_arg might be a user-specified struct. We'll look up it's name
     // and use the name to look up it's actual definition, to compare it.
     //let out_type_name = LLVMGetStructName(out_extra_arg);
@@ -78,8 +78,8 @@ pub unsafe fn move_return_into_args(
     //assert!(LLVMIsNull(terminator)!=0, "no terminator");
     LLVMDisposeBuilder(builder);
 
-    if let Err(e) = verify(module, outer_fnc) {
-        panic!("Creating a wrapper failed! {}", e);
+    if let Err(e) = verify_function(outer_fnc) {
+        panic!("Creating a wrapper function failed! {}", e);
     }
 
     outer_fnc
@@ -133,8 +133,8 @@ pub unsafe fn extract_return_type(
     //assert!(LLVMIsNull(terminator)!=0, "no terminator");
     LLVMDisposeBuilder(builder);
 
-    if let Err(e) = verify(module, outer_fnc) {
-        panic!("Creating a wrapper failed! {}", e);
+    if let Err(e) = verify_function(outer_fnc) {
+        panic!("Creating a wrapper function failed! {}", e);
     }
 
     outer_fnc
@@ -161,8 +161,7 @@ unsafe fn create_wrapper(
         inner_fnc_name.len() as usize,
     );
 
-    let c_outer_fnc_name = CString::new(fnc_name + "_tmp").unwrap();
-    //let c_outer_fnc_name = CString::new(fnc_name).unwrap();
+    let c_outer_fnc_name = CString::new(fnc_name).unwrap();
     let outer_fnc: LLVMValueRef = LLVMAddFunction(
         module,
         c_outer_fnc_name.as_ptr(),
@@ -185,13 +184,10 @@ unsafe fn create_wrapper(
     )
 }
 
-unsafe fn compare_param_types(
-    args1: Vec<LLVMValueRef>,
-    args2: Vec<LLVMValueRef>,
-) -> Result<(), String> {
+fn compare_param_types(args1: Vec<LLVMValueRef>, args2: Vec<LLVMValueRef>) -> Result<(), String> {
     for (i, (a, b)) in args1.iter().zip(args2.iter()).enumerate() {
-        let type1 = LLVMTypeOf(*a);
-        let type2 = LLVMTypeOf(*b);
+        let type1 = unsafe { LLVMTypeOf(*a) };
+        let type2 = unsafe { LLVMTypeOf(*b) };
         if type1 != type2 {
             let type1 = get_type(type1);
             let type2 = get_type(type2);
@@ -204,34 +200,13 @@ unsafe fn compare_param_types(
     Ok(())
 }
 
-unsafe fn get_params(fnc: LLVMValueRef) -> Vec<LLVMValueRef> {
-    let param_num = LLVMCountParams(fnc) as usize;
-    let mut fnc_args: Vec<LLVMValueRef> = vec![];
-    fnc_args.reserve(param_num);
-    LLVMGetParams(fnc, fnc_args.as_mut_ptr());
-    fnc_args.set_len(param_num);
-    fnc_args
-}
-
-unsafe fn verify(module: LLVMModuleRef, fnc: LLVMValueRef) -> Result<(), String> {
-    let fnc_ok = LLVMVerifyFunction(fnc, LLVMVerifierFailureAction::LLVMAbortProcessAction) == 0;
-    if !fnc_ok {
-        return Err("Could not validate function!".to_string());
-    };
-
-    let mut msg = ptr::null_mut();
-    let module_ok = LLVMVerifyModule(
-        module,
-        LLVMVerifierFailureAction::LLVMReturnStatusAction,
-        &mut msg,
-    ) == 0;
-    if !module_ok {
-        let c_msg = CStr::from_ptr(msg)
-            .to_str()
-            .expect("This msg should have been created by llvm!");
-        let error_msg = "Could not validate module!".to_owned() + c_msg;
-        LLVMDisposeMessage(msg);
-        return Err(error_msg);
+fn get_params(fnc: LLVMValueRef) -> Vec<LLVMValueRef> {
+    unsafe {
+        let param_num = LLVMCountParams(fnc) as usize;
+        let mut fnc_args: Vec<LLVMValueRef> = vec![];
+        fnc_args.reserve(param_num);
+        LLVMGetParams(fnc, fnc_args.as_mut_ptr());
+        fnc_args.set_len(param_num);
+        fnc_args
     }
-    Ok(())
 }

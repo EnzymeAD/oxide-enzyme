@@ -1,24 +1,35 @@
 mod foo;
 use foo::j;
-use simple_dep::{f,g};
+use simple_dep::{f, g};
 
 // Enzyme will generally return structs (unless we choose the duplicated arguments convention).
 // So let's define the return structs which we will use
 #[repr(C)]
 #[derive(Debug)]
-struct Ret1 { first : f64 }
+struct Ret1 {
+    first: f64,
+}
 #[repr(C)]
 #[derive(Debug)]
-struct Ret2 { first : f64, second : f64 }
+struct Ret2 {
+    first: f64,
+    second: f64,
+}
 #[repr(C)]
 #[derive(Debug)]
-struct Ret3 { first : f64, second : f64, third: f64 }
+struct Ret3 {
+    first: f64,
+    second: f64,
+    third: f64,
+}
 #[repr(C)]
 #[derive(Debug)]
-struct Ret4 { first : f64, second : f64, third: f64, fourth: f64 }
-
-
-
+struct Ret4 {
+    first: f64,
+    second: f64,
+    third: f64,
+    fourth: f64,
+}
 
 /// Function f(x) = (x^2 + 2)^2 + 2x
 /// Derivative f'(x) = 4x^3 + 8x + 2
@@ -36,7 +47,7 @@ fn test_ref(x: &mut f64) {
 
 #[no_mangle]
 fn f_wrap(x: f64, y: f64) -> f64 {
-    f(x,y)
+    f(x, y)
 }
 
 #[no_mangle]
@@ -46,17 +57,16 @@ fn g_wrap(x: f64) -> f64 {
 
 #[no_mangle]
 fn h(x: f64, y: f64) -> f64 {
-    2.0*x+y
+    2.0 * x + y
 }
 
-
-// enzyme1 does return two floats, but if we try to access them both, 
+// enzyme1 does return two floats, but if we try to access them both,
 // rustc will replace their type with a single double...
 extern "C" {
-    fn multi_args4( _: f64, _: f64, _: f64 ) -> Ret3;
-    fn multi_args1( _: f64, _: f64, _: f64 ) -> Ret2;
-    fn multi_args2( _: f64, _: f64, _: f64 ) -> Ret2;
-    fn     enzyme3( _: f64, _: f64 ) -> f64;
+    fn multi_args4(_: f64, _: f64, _: f64) -> Ret3;
+    fn multi_args1(_: f64, _: f64, _: f64) -> Ret2;
+    fn multi_args2(_: f64, _: f64, _: f64) -> Ret2;
+    fn enzyme3(_: f64, _: f64) -> f64;
     //fn multi_args3( _: f64, _: f64, _:f64 ) -> Ret2;
     // fn enzyme1( _:f64, _:f64 ) -> Ret2;
     // fn enzyme2( _: f64, _:f64) -> Ret;
@@ -70,12 +80,9 @@ extern "C" {
     //fn enzyme_f(x: f64, y: f64) -> Ret2;
 }
 
-
-
 static mut D_X: f64 = 0.0;
 static mut X2: f64 = 1.0;
 static mut D_X2: f64 = 0.0;
-
 
 fn main() {
     unsafe {
@@ -97,5 +104,4 @@ fn main() {
         //dbg!(&enzyme_f(1.0, 1.0));
     }
     //dbg!(test(1.0));
-
 }
