@@ -21,9 +21,6 @@ fn main() {
                              vec![DFT_OUT_DIFF],
                              Some((DFT_OUT_DIFF, false)));
 
-    let fnc_3 = FncInfo::new("test","enzyme3",
-                             vec![DFT_CONSTANT],
-                             Some((DFT_OUT_DIFF, false)));
 
     let fnc_4 = FncInfo::new("test","enzyme4",
                              vec![DFT_OUT_DIFF],
@@ -56,6 +53,14 @@ fn main() {
                              vec![CDIFFE_TYPE::DFT_OUT_DIFF, CDIFFE_TYPE::DFT_OUT_DIFF],
                              Some((CDIFFE_RETTYPE::DFT_OUT_DIFF, false)));
 
+    let mult_4 = FncInfo::new("h","multi_args4",
+                             vec![CDIFFE_TYPE::DFT_OUT_DIFF, CDIFFE_TYPE::DFT_OUT_DIFF],
+                             Some((CDIFFE_RETTYPE::DFT_OUT_DIFF, true)));
+    
+    let fnc_3 = FncInfo::new("test","enzyme3",
+                             vec![CDIFFE_TYPE::DFT_OUT_DIFF],
+                             Some((CDIFFE_RETTYPE::DFT_OUT_DIFF, false)));
+
     /*
 
     let fnc_ext1 = FncInfo::new("g_wrap","enzyme1",
@@ -77,6 +82,7 @@ fn main() {
 
     oxide_enzyme::build(
         //vec![fnc_ext1, fnc_ext2, fnc_ext3]//, fnc_ext4]//, fnc_2, fnc_3, fnc_4, fnc_5, fnc_6]
-        vec![mult_1, mult_2, mult_3]
+        //vec![mult_1, mult_2, mult_3]
+        vec![fnc_3, mult_4]
     );
 }

@@ -16,9 +16,14 @@ pub unsafe fn move_return_into_args(
     dbg!("Moving", fnc_name.clone());
     dbg!("From: ", get_type(f_type), " into ", get_type(u_type));
 
-    let inner_ret_type = LLVMGetReturnType(LLVMGetElementType(u_type));
-    if inner_ret_type != LLVMVoidType() {
-        let is = CString::from_raw(LLVMPrintTypeToString(inner_ret_type));
+    let inner_param_num = LLVMCountParams(fnc);
+    let (outer_fnc, outer_bb, mut outer_args, inner_args, c_inner_fnc_name) =
+        create_wrapper(module, context, fnc, u_type, fnc_name);
+
+    let inner_ret_type = LLVMGetReturnType(LLVMGetElementType(f_type));
+    let outer_ret_type = LLVMGetReturnType(LLVMGetElementType(u_type));
+    if outer_ret_type != LLVMVoidTypeInContext(context) {
+        let is = CString::from_raw(LLVMPrintTypeToString(outer_ret_type));
         let should = CString::from_raw(LLVMPrintTypeToString(LLVMVoidType()));
         panic!(
             "Return struct isn't moved into args. Please report this. {} vs. {}",
@@ -27,33 +32,40 @@ pub unsafe fn move_return_into_args(
         );
     }
 
-    let (outer_fnc, outer_bb, mut outer_args, inner_args, c_inner_fnc_name) =
-        create_wrapper(module, context, fnc, u_type, fnc_name);
-    let inner_param_num = LLVMCountParamTypes(LLVMGetElementType(f_type));
-    assert_eq!(
-        1 + inner_param_num as usize,
-        outer_args.len(),
-        "Outer wrapper should have exactly one extra arg. Please report this. {} vs {}",
-        inner_param_num,
-        outer_args.len()
-    );
-
-    let builder = LLVMCreateBuilderInContext(context);
-    LLVMPositionBuilderAtEnd(builder, outer_bb);
+    if outer_args.len() != 1 + inner_param_num as usize {
+        panic!(
+            "Outer wrapper should have exactly one extra arg. Please report this. {} vs {}",
+            inner_param_num,
+            outer_args.len()
+        )
+    }
 
     let mut input_args = outer_args.split_off(1);
     let out_extra_arg = LLVMTypeOf(outer_args[0]);
-    assert_eq!(
-        inner_ret_type, out_extra_arg,
-        "Ret of inner should be identical to first param of outer. Please report this."
-    );
-    if let Err(e) = compare_param_types(outer_args.clone(), inner_args) {
+
+    /*
+    // the out_extra_arg might be a user-specified struct. We'll look up it's name
+    // and use the name to look up it's actual definition, to compare it.
+    //let out_type_name = LLVMGetStructName(out_extra_arg);
+    if inner_ret_type != out_extra_arg {
+        dbg!(43);
+        //let inner_ret = get_type(inner_ret_type);
+        let inner_ret = get_type(inner_ret_type);
+        let extra_arg = get_type(out_extra_arg);
+        let foo = LLVMGetTypeByName2(context, &extra_arg);
+        panic!("Ret of inner should be identical to first param of outer. Please report this. {:?} vs. {:?}. Name: {:?}",
+               inner_ret, extra_arg, 42);
+    }
+    */
+    if let Err(e) = compare_param_types(input_args.clone(), inner_args) {
         panic!(
             "Argument types differ between wrapper and wrapped function! {}",
             e
         );
     }
 
+    let builder = LLVMCreateBuilderInContext(context);
+    LLVMPositionBuilderAtEnd(builder, outer_bb);
     outer_args[0] = LLVMBuildCall(
         builder,
         fnc,
@@ -88,14 +100,14 @@ pub unsafe fn extract_return_type(
     dbg!("Unpacking", fnc_name.clone());
     dbg!("From: ", get_type(f_type), " into ", get_type(u_type));
 
-    let (outer_fnc, outer_basic_block, mut outer_args, inner_args, c_inner_fnc_name) =
+    let inner_param_num = LLVMCountParams(fnc);
+    let (outer_fnc, outer_bb, mut outer_args, inner_args, c_inner_fnc_name) =
         create_wrapper(module, context, fnc, u_type, fnc_name);
-    let inner_param_num = LLVMCountParamTypes(LLVMGetElementType(f_type));
-    assert_eq!(
-        inner_param_num as usize,
-        outer_args.len(),
-        "Args len shouldn't differ. Please report this."
-    );
+
+    if inner_param_num as usize != outer_args.len() {
+        panic!("Args len shouldn't differ. Please report this.");
+    }
+
     if let Err(e) = compare_param_types(outer_args.clone(), inner_args) {
         panic!(
             "Argument types differ between wrapper and wrapped function! {}",
@@ -104,7 +116,7 @@ pub unsafe fn extract_return_type(
     }
 
     let builder = LLVMCreateBuilderInContext(context);
-    LLVMPositionBuilderAtEnd(builder, outer_basic_block);
+    LLVMPositionBuilderAtEnd(builder, outer_bb);
     let struct_ret = LLVMBuildCall(
         builder,
         fnc,
@@ -117,7 +129,7 @@ pub unsafe fn extract_return_type(
     let c_inner_grad_name = CString::new(inner_grad_name).unwrap();
     let struct_ret = LLVMBuildExtractValue(builder, struct_ret, 0, c_inner_grad_name.as_ptr());
     let _ret = LLVMBuildRet(builder, struct_ret);
-    let _terminator = LLVMGetBasicBlockTerminator(outer_basic_block);
+    let _terminator = LLVMGetBasicBlockTerminator(outer_bb);
     //assert!(LLVMIsNull(terminator)!=0, "no terminator");
     LLVMDisposeBuilder(builder);
 
@@ -133,10 +145,14 @@ unsafe fn compare_param_types(
     args2: Vec<LLVMValueRef>,
 ) -> Result<(), String> {
     for (i, (a, b)) in args1.iter().zip(args2.iter()).enumerate() {
-        if LLVMTypeOf(*a) != LLVMTypeOf(*b) {
+        let type1 = LLVMTypeOf(*a);
+        let type2 = LLVMTypeOf(*b);
+        if type1 != type2 {
+            let type1 = get_type(type1);
+            let type2 = get_type(type2);
             return Err(format!(
-                "Type of inputs between wrapper and wrapped fnc differ at {}",
-                i
+                "Type of inputs differ at position {}. {:?} vs. {:?}",
+                i, type1, type2
             ));
         }
     }
@@ -144,11 +160,11 @@ unsafe fn compare_param_types(
 }
 
 unsafe fn get_params(fnc: LLVMValueRef) -> Vec<LLVMValueRef> {
-    let u_type: LLVMTypeRef = LLVMTypeOf(fnc);
-    let param_num = LLVMCountParamTypes(LLVMGetElementType(u_type));
+    let param_num = LLVMCountParams(fnc) as usize;
     let mut fnc_args: Vec<LLVMValueRef> = vec![];
-    fnc_args.reserve(param_num as usize);
+    fnc_args.reserve(param_num);
     LLVMGetParams(fnc, fnc_args.as_mut_ptr());
+    fnc_args.set_len(param_num);
     fnc_args
 }
 
@@ -167,16 +183,17 @@ unsafe fn create_wrapper(
 ) {
     let inner_fnc_name = "inner_".to_string() + &fnc_name;
     let c_inner_fnc_name = CString::new(inner_fnc_name.clone()).unwrap();
+    LLVMSetValueName2(
+        fnc,
+        c_inner_fnc_name.as_ptr(),
+        inner_fnc_name.len() as usize,
+    );
+
     let c_outer_fnc_name = CString::new(fnc_name).unwrap();
     let outer_fnc: LLVMValueRef = LLVMAddFunction(
         module,
         c_outer_fnc_name.as_ptr(),
         LLVMGetElementType(u_type) as LLVMTypeRef,
-    );
-    LLVMSetValueName2(
-        fnc,
-        c_inner_fnc_name.as_ptr(),
-        inner_fnc_name.len() as usize,
     );
 
     let entry = "fnc_entry".to_string();

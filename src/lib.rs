@@ -315,6 +315,7 @@ fn remove_U_symbols(
                 // TODO: Check for 2xf32 -> 1xf64 changes
 
                 if LLVMCountStructElementTypes(f_return_type) > 2 {
+                    dbg!("move_return_into_args");
                     // The C-Abi will change a function returning a struct with more than
                     // two float values by returning void and moving the actual return struct
                     // into the parameter list, at the first position.
@@ -330,6 +331,7 @@ fn remove_U_symbols(
                 }
 
                 if LLVMCountStructElementTypes(f_return_type) == 1 {
+                    dbg!("extract_return_type");
                     // Here we check for the third change, rust will expect T instead of { T },
                     // for generated functions which only return exactly one variable in a struct.
                     grad_functions[i] = wrappers::extract_return_type(
@@ -504,7 +506,7 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     enzyme_print_type(false); //
 
     // Now that we have the gradients, lets clean up
-    remove_functions(junk_fnc);
+    // remove_functions(junk_fnc);
 
     // Some magic to make the symbols link together nicely
 
