@@ -140,6 +140,51 @@ pub unsafe fn extract_return_type(
     outer_fnc
 }
 
+unsafe fn create_wrapper(
+    module: LLVMModuleRef,
+    context: LLVMContextRef,
+    fnc: LLVMValueRef,
+    u_type: LLVMTypeRef,
+    fnc_name: String,
+) -> (
+    LLVMValueRef,
+    LLVMBasicBlockRef,
+    Vec<LLVMValueRef>,
+    Vec<LLVMValueRef>,
+    CString,
+) {
+    let inner_fnc_name = "inner_".to_string() + &fnc_name;
+    let c_inner_fnc_name = CString::new(inner_fnc_name.clone()).unwrap();
+    LLVMSetValueName2(
+        fnc,
+        c_inner_fnc_name.as_ptr(),
+        inner_fnc_name.len() as usize,
+    );
+
+    let c_outer_fnc_name = CString::new(fnc_name + "_tmp").unwrap();
+    //let c_outer_fnc_name = CString::new(fnc_name).unwrap();
+    let outer_fnc: LLVMValueRef = LLVMAddFunction(
+        module,
+        c_outer_fnc_name.as_ptr(),
+        LLVMGetElementType(u_type) as LLVMTypeRef,
+    );
+
+    let entry = "fnc_entry".to_string();
+    let c_entry = CString::new(entry).unwrap();
+    let basic_block = LLVMAppendBasicBlockInContext(context, outer_fnc, c_entry.as_ptr());
+
+    let outer_params: Vec<LLVMValueRef> = get_params(outer_fnc);
+    let inner_params: Vec<LLVMValueRef> = get_params(fnc);
+
+    (
+        outer_fnc,
+        basic_block,
+        outer_params,
+        inner_params,
+        c_inner_fnc_name,
+    )
+}
+
 unsafe fn compare_param_types(
     args1: Vec<LLVMValueRef>,
     args2: Vec<LLVMValueRef>,
@@ -166,50 +211,6 @@ unsafe fn get_params(fnc: LLVMValueRef) -> Vec<LLVMValueRef> {
     LLVMGetParams(fnc, fnc_args.as_mut_ptr());
     fnc_args.set_len(param_num);
     fnc_args
-}
-
-unsafe fn create_wrapper(
-    module: LLVMModuleRef,
-    context: LLVMContextRef,
-    fnc: LLVMValueRef,
-    u_type: LLVMTypeRef,
-    fnc_name: String,
-) -> (
-    LLVMValueRef,
-    LLVMBasicBlockRef,
-    Vec<LLVMValueRef>,
-    Vec<LLVMValueRef>,
-    CString,
-) {
-    let inner_fnc_name = "inner_".to_string() + &fnc_name;
-    let c_inner_fnc_name = CString::new(inner_fnc_name.clone()).unwrap();
-    LLVMSetValueName2(
-        fnc,
-        c_inner_fnc_name.as_ptr(),
-        inner_fnc_name.len() as usize,
-    );
-
-    let c_outer_fnc_name = CString::new(fnc_name).unwrap();
-    let outer_fnc: LLVMValueRef = LLVMAddFunction(
-        module,
-        c_outer_fnc_name.as_ptr(),
-        LLVMGetElementType(u_type) as LLVMTypeRef,
-    );
-
-    let entry = "fnc_entry".to_string();
-    let c_entry = CString::new(entry).unwrap();
-    let basic_block = LLVMAppendBasicBlockInContext(context, outer_fnc, c_entry.as_ptr());
-
-    let outer_params: Vec<LLVMValueRef> = get_params(outer_fnc);
-    let inner_params: Vec<LLVMValueRef> = get_params(fnc);
-
-    (
-        outer_fnc,
-        basic_block,
-        outer_params,
-        inner_params,
-        c_inner_fnc_name,
-    )
 }
 
 unsafe fn verify(module: LLVMModuleRef, fnc: LLVMValueRef) -> Result<(), String> {

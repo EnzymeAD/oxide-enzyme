@@ -298,23 +298,18 @@ fn remove_U_symbols(
             let u_return_type = LLVMGetReturnType(LLVMGetElementType(u_type));
             let f_return_type = LLVMGetReturnType(LLVMGetElementType(f_type));
 
-            let u_type_string = get_type(u_type);
-            let f_type_string = get_type(f_type);
-            let u_ret_type_string = get_type(u_return_type);
-            let f_ret_type_string = get_type(f_return_type);
-
             if u_type != f_type {
                 dbg!("Some type missmatch happened for ".to_owned() + &grad_names[i]);
-                dbg!(&u_type_string);
-                dbg!(&f_type_string);
-                dbg!(u_ret_type_string);
-                dbg!(f_ret_type_string);
+                dbg!(get_type(u_type));
+                dbg!(get_type(f_type));
+                dbg!(get_type(u_return_type));
+                dbg!(get_type(f_return_type));
                 dbg!();
-                // Type mismatch which we should fix
 
                 // TODO: Check for 2xf32 -> 1xf64 changes
+                let num_elem_in_ret_struct = LLVMCountStructElementTypes(f_return_type);
 
-                if LLVMCountStructElementTypes(f_return_type) > 2 {
+                if num_elem_in_ret_struct > 2 {
                     dbg!("move_return_into_args");
                     // The C-Abi will change a function returning a struct with more than
                     // two float values by returning void and moving the actual return struct
@@ -327,10 +322,8 @@ fn remove_U_symbols(
                         f_type,
                         grad_name.clone(),
                     );
-                    continue;
-                }
-
-                if LLVMCountStructElementTypes(f_return_type) == 1 {
+                    //continue;
+                } else if num_elem_in_ret_struct == 1 {
                     dbg!("extract_return_type");
                     // Here we check for the third change, rust will expect T instead of { T },
                     // for generated functions which only return exactly one variable in a struct.
@@ -342,10 +335,10 @@ fn remove_U_symbols(
                         f_type,
                         grad_name.clone(),
                     );
-                    continue;
+                    //continue;
+                } else {
+                    panic!("Unhandled type missmatch. Please report this.");
                 }
-
-                panic!("Unhandled type missmatch. Please report this.");
             }
 
             // Clean up
@@ -407,21 +400,14 @@ fn localize_all_symbols(module: LLVMModuleRef) {
         LLVMSetLinkage(symbol, LLVMLinkage::LLVMInternalLinkage);
     }
 }
-fn globalize_grad_symbols(module: LLVMModuleRef, grad_fnc_names: Vec<String>) {
-    for grad_fnc_name in grad_fnc_names {
-        let c_grad_fnc_name = CString::new(grad_fnc_name.clone()).unwrap();
-        let grad_fnc = unsafe { LLVMGetNamedFunction(module, c_grad_fnc_name.as_ptr()) };
-        assert_ne!(
-            grad_fnc as usize, 0,
-            "couldn't find function {}",
-            grad_fnc_name
-        );
+
+fn globalize_gradients(fncs: Vec<LLVMValueRef>) {
+    for grad_fnc in fncs {
         unsafe {
             LLVMSetLinkage(grad_fnc, LLVMLinkage::LLVMExternalLinkage);
         }
     }
 }
-
 fn list_functions(module: LLVMModuleRef) -> Vec<LLVMValueRef> {
     unsafe {
         let mut res = vec![];
@@ -506,7 +492,7 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     enzyme_print_type(false); //
 
     // Now that we have the gradients, lets clean up
-    // remove_functions(junk_fnc);
+    remove_functions(junk_fnc);
 
     // Some magic to make the symbols link together nicely
 
@@ -515,7 +501,7 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     // Next, we localize all symbols, since we only want to expose the newly generated functions
     localize_all_symbols(module);
     // Finaly, we expose those new functiosn
-    globalize_grad_symbols(module, grad_names);
+    globalize_gradients(grad_fncs);
 
     // And now we store all gradients in a single object file
     dumb_module_to_obj(module, context, &out_obj);
