@@ -2,7 +2,7 @@ use crate::FncInfo;
 use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyFunction, LLVMVerifyModule};
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::ptr;
 
 unsafe fn verify_single(info: &FncInfo, fnc_type: LLVMTypeRef) -> Result<(), String> {
@@ -107,6 +107,29 @@ pub unsafe fn verify_module(module: LLVMModuleRef) -> Result<(), String> {
         let error_msg = "Could not validate module!".to_owned() + c_msg;
         LLVMDisposeMessage(msg);
         return Err(error_msg);
+    }
+    Ok(())
+}
+
+fn get_type(t: LLVMTypeRef) -> CString {
+    unsafe { CString::from_raw(LLVMPrintTypeToString(t)) }
+}
+
+pub fn compare_param_types(
+    args1: Vec<LLVMValueRef>,
+    args2: Vec<LLVMValueRef>,
+) -> Result<(), String> {
+    for (i, (a, b)) in args1.iter().zip(args2.iter()).enumerate() {
+        let type1 = unsafe { LLVMTypeOf(*a) };
+        let type2 = unsafe { LLVMTypeOf(*b) };
+        if type1 != type2 {
+            let type1 = get_type(type1);
+            let type2 = get_type(type2);
+            return Err(format!(
+                "Type of inputs differ at position {}. {:?} vs. {:?}",
+                i, type1, type2
+            ));
+        }
     }
     Ok(())
 }

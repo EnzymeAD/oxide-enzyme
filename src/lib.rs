@@ -137,7 +137,8 @@ fn read_bc_files(fnc_names: Vec<String>) -> (LLVMModuleRef, LLVMContextRef) {
     let mut bc_files: Vec<String> = vec![];
     let mut main_bc: String = "".to_owned();
     let search_term = deps_dir.join("*.bc");
-    let search_results = glob(search_term.to_str().unwrap()).expect("Failed to read glob pattern. Please report this!");
+    let search_results = glob(search_term.to_str().unwrap())
+        .expect("Failed to read glob pattern. Please report this!");
     for path in search_results.flatten() {
         let bc_string_name = path.into_os_string().into_string().unwrap();
         if bc_string_name.starts_with(deps_dir.join(&crate_name).to_str().unwrap()) {
@@ -147,7 +148,10 @@ fn read_bc_files(fnc_names: Vec<String>) -> (LLVMModuleRef, LLVMContextRef) {
         }
     }
     dbg!(&bc_files);
-    assert_ne!("", main_bc, "Couldn't find central bc file. Please report this!");
+    assert_ne!(
+        "", main_bc,
+        "Couldn't find central bc file. Please report this!"
+    );
 
     let mut merge = Command::new(&llvm_link());
     merge.current_dir(&central_dir);
@@ -196,7 +200,11 @@ fn load_primary_functions(module: LLVMModuleRef, fnc_names: Vec<String>) -> Vec<
     for fnc_name in &fnc_names {
         let c_name = CString::new(fnc_name.clone()).unwrap();
         let llvm_fnc = unsafe { LLVMGetNamedFunction(module, c_name.as_ptr()) };
-        assert_ne!(llvm_fnc as usize, 0, "We couldn't find the function definition for {}. Please add it.", fnc_name);
+        assert_ne!(
+            llvm_fnc as usize, 0,
+            "We couldn't find the function definition for {}. Please add it.",
+            fnc_name
+        );
         functions.push(llvm_fnc);
     }
     assert_eq!(
@@ -398,7 +406,7 @@ fn only_expose_gradients(module: LLVMModuleRef, fncs: Vec<LLVMValueRef>) {
         }
         LLVMSetLinkage(symbol, LLVMLinkage::LLVMInternalLinkage);
     }
-    
+
     for grad_fnc in fncs {
         unsafe {
             LLVMSetLinkage(grad_fnc, LLVMLinkage::LLVMExternalLinkage);
