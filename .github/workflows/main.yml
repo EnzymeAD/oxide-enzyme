@@ -1,30 +1,13 @@
 # On every push this script is executed
 on: [push, pull_request]
-jobs:
-  build:
-    name: Build and deploy GH Pages
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-      - name: build_and_deploy
-        uses: shalzz/zola-deploy-action@v0.13.0
-        env:
-          # Target branch
-          PAGES_BRANCH: gh-pages
-          # Build Dir containing config.toml
-          BUILD_DIR: docs/website/
-          # Provide personal access token
-          TOKEN: ${{ secrets.TOKEN }}
-
-  testing:
-    name: fmt
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
-    steps:
-      - uses: actions/checkout@v2      
-      - uses: hecrj/setup-rust-action@v1        
-        with:
-          components: rustfmt
-      - run: cargo fmt --all -- --check
+  jobs:
+    testing:
+      name: fmt
+      runs-on: ubuntu-latest
+      if: github.event.pull_request.draft == false
+      steps:
+        - uses: actions/checkout@v2      
+        - uses: hecrj/setup-rust-action@v1        
+          with:
+            components: rustfmt
+        - run: cargo fmt --all -- --check
