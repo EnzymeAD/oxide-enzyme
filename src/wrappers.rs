@@ -1,5 +1,5 @@
 use crate::get_type;
-use crate::verify::verify_function;
+use crate::verify::{compare_param_types, verify_function};
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
 use std::ffi::CString;
@@ -9,9 +9,9 @@ pub unsafe fn move_return_into_args(
     context: LLVMContextRef,
     fnc: LLVMValueRef,
     u_type: LLVMTypeRef,
-    f_type: LLVMTypeRef,
     fnc_name: String,
 ) -> LLVMValueRef {
+    let f_type = LLVMTypeOf(fnc);
     dbg!("Moving", fnc_name.clone());
     dbg!("From: ", get_type(f_type), " into ", get_type(u_type));
 
@@ -94,9 +94,9 @@ pub unsafe fn extract_return_type(
     context: LLVMContextRef,
     fnc: LLVMValueRef,
     u_type: LLVMTypeRef,
-    f_type: LLVMTypeRef,
     fnc_name: String,
 ) -> LLVMValueRef {
+    let f_type = LLVMTypeOf(fnc);
     dbg!("Unpacking", fnc_name.clone());
     dbg!("From: ", get_type(f_type), " into ", get_type(u_type));
 
@@ -182,22 +182,6 @@ unsafe fn create_wrapper(
         inner_params,
         c_inner_fnc_name,
     )
-}
-
-fn compare_param_types(args1: Vec<LLVMValueRef>, args2: Vec<LLVMValueRef>) -> Result<(), String> {
-    for (i, (a, b)) in args1.iter().zip(args2.iter()).enumerate() {
-        let type1 = unsafe { LLVMTypeOf(*a) };
-        let type2 = unsafe { LLVMTypeOf(*b) };
-        if type1 != type2 {
-            let type1 = get_type(type1);
-            let type2 = get_type(type2);
-            return Err(format!(
-                "Type of inputs differ at position {}. {:?} vs. {:?}",
-                i, type1, type2
-            ));
-        }
-    }
-    Ok(())
 }
 
 fn get_params(fnc: LLVMValueRef) -> Vec<LLVMValueRef> {
