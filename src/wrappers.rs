@@ -9,9 +9,9 @@ pub unsafe fn move_return_into_args(
     context: LLVMContextRef,
     fnc: LLVMValueRef,
     u_type: LLVMTypeRef,
-    f_type: LLVMTypeRef,
     fnc_name: String,
 ) -> LLVMValueRef {
+    let f_type = LLVMTypeOf(fnc);
     dbg!("Moving", fnc_name.clone());
     dbg!("From: ", get_type(f_type), " into ", get_type(u_type));
 
@@ -94,9 +94,9 @@ pub unsafe fn extract_return_type(
     context: LLVMContextRef,
     fnc: LLVMValueRef,
     u_type: LLVMTypeRef,
-    f_type: LLVMTypeRef,
     fnc_name: String,
 ) -> LLVMValueRef {
+    let f_type = LLVMTypeOf(fnc);
     dbg!("Unpacking", fnc_name.clone());
     dbg!("From: ", get_type(f_type), " into ", get_type(u_type));
 

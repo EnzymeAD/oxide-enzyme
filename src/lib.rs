@@ -137,7 +137,7 @@ fn read_bc_files(fnc_names: Vec<String>) -> (LLVMModuleRef, LLVMContextRef) {
     let mut bc_files: Vec<String> = vec![];
     let mut main_bc: String = "".to_owned();
     let search_term = deps_dir.join("*.bc");
-    let search_results = glob(search_term.to_str().unwrap()).expect("Failed to read glob pattern");
+    let search_results = glob(search_term.to_str().unwrap()).expect("Failed to read glob pattern. Please report this!");
     for path in search_results.flatten() {
         let bc_string_name = path.into_os_string().into_string().unwrap();
         if bc_string_name.starts_with(deps_dir.join(&crate_name).to_str().unwrap()) {
@@ -147,7 +147,7 @@ fn read_bc_files(fnc_names: Vec<String>) -> (LLVMModuleRef, LLVMContextRef) {
         }
     }
     dbg!(&bc_files);
-    assert_ne!("", main_bc, "Couldn't find central bc file");
+    assert_ne!("", main_bc, "Couldn't find central bc file. Please report this!");
 
     let mut merge = Command::new(&llvm_link());
     merge.current_dir(&central_dir);
@@ -169,14 +169,14 @@ fn read_bc_files(fnc_names: Vec<String>) -> (LLVMModuleRef, LLVMContextRef) {
         assert_eq!(
             LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr(), &mut memory_buf, &mut msg),
             0,
-            "could not read in!"
+            "Could not read LLVM-bc file. Please report this!"
         );
 
         let mut module = ptr::null_mut();
 
         assert!(
             LLVMParseIRInContext(context, memory_buf, &mut module, &mut msg) == 0,
-            "Could not create module!"
+            "Could not create the module. Please report this!"
         );
         LLVMDisposeMessage(msg);
 
@@ -196,13 +196,13 @@ fn load_primary_functions(module: LLVMModuleRef, fnc_names: Vec<String>) -> Vec<
     for fnc_name in &fnc_names {
         let c_name = CString::new(fnc_name.clone()).unwrap();
         let llvm_fnc = unsafe { LLVMGetNamedFunction(module, c_name.as_ptr()) };
-        assert_ne!(llvm_fnc as usize, 0, "couldn't find {}", fnc_name);
+        assert_ne!(llvm_fnc as usize, 0, "We couldn't find the function definition for {}. Please add it.", fnc_name);
         functions.push(llvm_fnc);
     }
     assert_eq!(
         functions.len(),
         fnc_names.len(),
-        "load_llvm: couldn't find all functions!"
+        "We couldn't find all functions, that's a bug. Please report it!"
     );
     functions
 }
@@ -244,7 +244,7 @@ fn generate_grad_function(
     assert_eq!(
         grad_fncs.len(),
         functions.len(),
-        "failed generating all gradient functions!"
+        "We failed generating all gradient functions. Please report it!"
     );
     grad_fncs
 }
@@ -290,7 +290,7 @@ fn handle_ffi(
         let u_fnc: LLVMValueRef = unsafe { LLVMGetNamedFunction(module, c_fnc_name.as_ptr()) };
         assert_ne!(
             u_fnc as usize, 0,
-            "Couldn't get undef symbol {}. \
+            "Couldn't get undef symbol for {}. \
                    Do you declare your gradient function in an extern block?",
             grad_name
         );
@@ -322,7 +322,6 @@ fn handle_ffi(
                         context,
                         grad_functions[i],
                         u_type,
-                        f_type,
                         grad_name.clone(),
                     );
                 } else if num_elem_in_ret_struct == 1 {
@@ -334,7 +333,6 @@ fn handle_ffi(
                         context,
                         grad_functions[i],
                         u_type,
-                        f_type,
                         grad_name.clone(),
                     );
                 } else {
@@ -380,7 +378,7 @@ fn dumb_module_to_obj(module: LLVMModuleRef, context: LLVMContextRef, out_obj: &
     }
 }
 
-fn localize_all_symbols(module: LLVMModuleRef) {
+fn only_expose_gradients(module: LLVMModuleRef, fncs: Vec<LLVMValueRef>) {
     unsafe {
         // All functions
         let mut symbol = LLVMGetFirstFunction(module);
@@ -400,15 +398,14 @@ fn localize_all_symbols(module: LLVMModuleRef) {
         }
         LLVMSetLinkage(symbol, LLVMLinkage::LLVMInternalLinkage);
     }
-}
-
-fn globalize_gradients(fncs: Vec<LLVMValueRef>) {
+    
     for grad_fnc in fncs {
         unsafe {
             LLVMSetLinkage(grad_fnc, LLVMLinkage::LLVMExternalLinkage);
         }
     }
 }
+
 fn list_functions(module: LLVMModuleRef) -> Vec<LLVMValueRef> {
     unsafe {
         let mut res = vec![];
@@ -463,16 +460,6 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
         parameter_informations.push(info.params);
     }
 
-    // Catch user mistakes
-    let mut unique_grad_names = grad_names.clone();
-    unique_grad_names.sort();
-    unique_grad_names.dedup();
-    assert_eq!(
-        grad_names.len(),
-        unique_grad_names.len(),
-        "Please only use unique names for your functions. Double-check your build.rs file."
-    );
-
     // Merge and load the bitcode files with some care to have all the code which we might differentiate
     let (module, context) = read_bc_files(primary_names.clone());
 
@@ -499,8 +486,6 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     // Now that we have the gradients, lets clean up
     remove_functions(junk_fnc);
 
-    // Some magic to make the symbols link together nicely
-
     // First, some magic to handle ffi
     handle_ffi(module, context, &mut grad_fncs, grad_names.clone());
 
@@ -513,15 +498,13 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
         );
     }
 
-    // Next, we localize all symbols, since we only want to expose the newly generated functions
-    localize_all_symbols(module);
-    // Finaly, we expose those new functiosn
-    globalize_gradients(grad_fncs);
+    // Next, we localize all other symbols, since we only want to expose the newly generated functions
+    only_expose_gradients(module, grad_fncs);
 
     // And now we store all gradients in a single object file
     dumb_module_to_obj(module, context, &out_obj);
 
-    // compile to static archive
+    // compile object file to static archive
     cc::Build::new().object(out_obj).compile("GradFunc");
 
     // And remove the extra __rust_probestack
