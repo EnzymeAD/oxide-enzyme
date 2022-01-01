@@ -1,13 +1,13 @@
 # On every push this script is executed
 on: [push, pull_request]
-  jobs:
-    testing:
-      name: fmt
-      runs-on: ubuntu-latest
-      if: github.event.pull_request.draft == false
-      steps:
-        - uses: actions/checkout@v2      
-        - uses: hecrj/setup-rust-action@v1        
-          with:
-            components: rustfmt
-        - run: cargo fmt --all -- --check
+jobs:
+  testing:
+    name: fmt
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v2      
+      - uses: hecrj/setup-rust-action@v1        
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
