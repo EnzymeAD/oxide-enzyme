@@ -4,6 +4,21 @@ use llvm_sys::core::*;
 use llvm_sys::prelude::*;
 use std::ffi::CString;
 
+/// This function creates and returns a wrapper function 'fnc_name' around the given function.
+///
+/// The wrapped function is expected to return a struct with three or more f64 values.
+/// The wrapper function will accept the same arguments as the wrapped function,
+/// except of an extra struct as the first argument. The wrapper will pass all other
+/// arguments to the wrapped function and update the extra struct parameter based on
+/// the return value of the wrapped function.
+///
+/// # Safety
+///
+/// The `module`, `context`, and `fnc` must all be valid.
+/// The function `fnc` must be part of the given module and return a struct with three or more f64
+/// values and no other content.
+/// `u_type` and LLVMTypeOf(fnc) shall only differ by the position of the struct, `u_type` must
+/// therefore return void ( () on Rust level).
 pub unsafe fn move_return_into_args(
     module: LLVMModuleRef,
     context: LLVMContextRef,
@@ -85,10 +100,18 @@ pub unsafe fn move_return_into_args(
     outer_fnc
 }
 
-// Our Gradient fnc is returning a struct containing one element.
-// Our Rust code expects a function returning the element, without the struct
-// We create a new (identical) fnc which only differs in returning T rather than { T }.
-// All it does is call enzyme's grad fnc and extract T from the struct, forwarding it.
+/// This function creates and returns a wrapper function 'fnc_name' around the given function.
+///
+/// The wrapped function is expected to return a struct `{ f64 }` consisting of exactly one `f64` value.
+/// The wrapper function will accept the same arguments as the wrapped function and return
+/// the inner `f64` instead of the struct.
+///
+/// # Safety
+///
+/// The `module`, `context`, and `fnc` must all be valid.
+/// The function `fnc` must be part of the given module and return a struct with one f64
+/// value and no other content.
+/// `u_type` and LLVMTypeOf(fnc) shall only differ by the return type, as specified above.
 pub unsafe fn extract_return_type(
     module: LLVMModuleRef,
     context: LLVMContextRef,

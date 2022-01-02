@@ -1,8 +1,8 @@
-use crate::FncInfo;
+use crate::{get_type, FncInfo};
 use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyFunction, LLVMVerifyModule};
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::ptr;
 
 unsafe fn verify_single(info: &FncInfo, fnc_type: LLVMTypeRef) -> Result<(), String> {
@@ -109,10 +109,6 @@ pub unsafe fn verify_module(module: LLVMModuleRef) -> Result<(), String> {
         return Err(error_msg);
     }
     Ok(())
-}
-
-fn get_type(t: LLVMTypeRef) -> CString {
-    unsafe { CString::from_raw(LLVMPrintTypeToString(t)) }
 }
 
 pub fn compare_param_types(

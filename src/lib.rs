@@ -109,7 +109,7 @@ fn create_target_machine() -> LLVMTargetMachineRef {
     }
 }
 
-fn get_type(t: LLVMTypeRef) -> CString {
+pub(crate) fn get_type(t: LLVMTypeRef) -> CString {
     unsafe { CString::from_raw(LLVMPrintTypeToString(t)) }
 }
 
