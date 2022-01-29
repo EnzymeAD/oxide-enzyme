@@ -1,3 +1,4 @@
+use crate::enzyme::ReturnActivity;
 use crate::{get_type, FncInfo};
 use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyFunction, LLVMVerifyModule};
 use llvm_sys::core::*;
@@ -5,7 +6,11 @@ use llvm_sys::prelude::*;
 use std::ffi::CStr;
 use std::ptr;
 
-unsafe fn verify_single(info: &FncInfo, fnc_type: LLVMTypeRef) -> Result<(), String> {
+unsafe fn verify_single(
+    info: &FncInfo,
+    fnc_type: LLVMTypeRef,
+    ctx: LLVMContextRef,
+) -> Result<(), String> {
     let fnc_type = LLVMGetElementType(fnc_type);
     let return_type = LLVMGetReturnType(fnc_type);
 
@@ -17,12 +22,12 @@ unsafe fn verify_single(info: &FncInfo, fnc_type: LLVMTypeRef) -> Result<(), Str
 
     dbg!("First local check");
     // 1. Check that info.ret_info == None if fnc_type returns void
-    if return_type == LLVMVoidType() {
-        if info.params.ret_info.is_some() {
+    if return_type == LLVMVoidTypeInContext(ctx) {
+        if info.params.ret_info != ReturnActivity::None {
             let error_msg = "Your function is returning (), so please set the ret_info of your FncInfo to None!".to_string();
             return Err(error_msg);
         }
-    } else if info.params.ret_info.is_none() {
+    } else if info.params.ret_info == ReturnActivity::None {
         let error_msg = "Your function is returning something, so please don't set the ret_info of your FncInfo to None!".to_string();
         return Err(error_msg);
     }
@@ -43,6 +48,7 @@ unsafe fn verify_single(info: &FncInfo, fnc_type: LLVMTypeRef) -> Result<(), Str
 pub fn verify_user_inputs(
     infos: Vec<FncInfo>,
     primary_functions: Vec<LLVMValueRef>,
+    ctx: LLVMContextRef,
 ) -> Result<(), String> {
     dbg!("First global check");
     if infos.len() != primary_functions.len() {
@@ -74,11 +80,12 @@ pub fn verify_user_inputs(
         }
     }
 
-    dbg!("Moving to local checks");
+    dbg!("Moving to local checks: ", infos.len());
+    dbg!(infos[0].params.ret_info);
     for (info, &fnc) in infos.iter().zip(primary_functions.iter()) {
         unsafe {
             let fnc_type = LLVMTypeOf(fnc);
-            verify_single(info, fnc_type)?;
+            verify_single(info, fnc_type, ctx)?;
         }
     }
     Ok(())
