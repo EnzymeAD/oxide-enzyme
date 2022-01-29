@@ -54,7 +54,7 @@ pub struct FncInfo {
 #[derive(Clone)]
 pub struct ParamInfos {
     pub input_activity: Vec<CDIFFE_TYPE>, // How should it's arguments be treated?
-    pub ret_info: Option<(CDIFFE_RETTYPE, bool)>,
+    pub ret_info: ReturnActivity,
 }
 
 impl FncInfo {
@@ -71,7 +71,7 @@ impl FncInfo {
         primary_name: &str,
         grad_name: &str,
         input_activity: Vec<CDIFFE_TYPE>,
-        ret_info: Option<(CDIFFE_RETTYPE, bool)>,
+        ret_info: ReturnActivity,
     ) -> FncInfo {
         FncInfo {
             primary_name: primary_name.to_string(),
@@ -90,26 +90,19 @@ pub fn create_empty_type_analysis() -> EnzymeTypeAnalysisRef {
     unsafe { CreateTypeAnalysis(tripple, std::ptr::null_mut(), std::ptr::null_mut(), 0) }
 }
 
-#[allow(non_camel_case_types)]
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum CDIFFE_RETTYPE {
-    DFT_OUT_DIFF = CDIFFE_TYPE::DFT_OUT_DIFF as u32,
-    DFT_CONSTANT = CDIFFE_TYPE::DFT_CONSTANT as u32,
-}
-
 // The Enzyme API is too unspecific for the return type, so we introduced
 // the stricter CDIFFE_RETTYPE to not allow types which are illegal for
 // the ret activity. Enzyme doesn't know this type, so we match it back.
 // We should add the capability to enzyme to also support DUP_ARG on merged
 // forward+reverse however.
-impl From<CDIFFE_RETTYPE> for CDIFFE_TYPE {
-    fn from(ret_type: CDIFFE_RETTYPE) -> CDIFFE_TYPE {
-        match ret_type {
-            CDIFFE_RETTYPE::DFT_OUT_DIFF => CDIFFE_TYPE::DFT_OUT_DIFF,
-            CDIFFE_RETTYPE::DFT_CONSTANT => CDIFFE_TYPE::DFT_CONSTANT,
-        }
-    }
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum ReturnActivity {
+    Active,
+    Gradient,
+    Constant,
+    Ignore,
+    None,
 }
 
 pub struct AutoDiff {
@@ -130,12 +123,15 @@ impl AutoDiff {
         &self,
         fnc_todiff: LLVMValueRef,
         args_activity: &mut [CDIFFE_TYPE],
-        ret_info: Option<(CDIFFE_RETTYPE, bool)>,
+        ret_info: ReturnActivity,
         opt: bool,
     ) -> LLVMValueRef {
         let (ret_activity, ret_primary_ret) = match ret_info {
-            None => (CDIFFE_TYPE::DFT_CONSTANT, false as u8),
-            Some((activity, ret_primary_ret)) => (activity.into(), ret_primary_ret as u8),
+            ReturnActivity::Active => (CDIFFE_TYPE::DFT_OUT_DIFF, true as u8),
+            ReturnActivity::Gradient => (CDIFFE_TYPE::DFT_OUT_DIFF, false as u8),
+            ReturnActivity::Constant => (CDIFFE_TYPE::DFT_CONSTANT, true as u8),
+            ReturnActivity::Ignore => (CDIFFE_TYPE::DFT_CONSTANT, false as u8),
+            ReturnActivity::None => (CDIFFE_TYPE::DFT_CONSTANT, false as u8), // those should be ignored by enzyme since we don't have a return, just a safe fallback
         };
 
         let tree_tmp = TypeTree::new();
@@ -172,7 +168,7 @@ impl AutoDiff {
                 args_activity.len() as u64, // constant arguments
                 self.type_analysis,         // type analysis struct
                 ret_primary_ret as u8,
-                0,
+                0,                                        // 0
                 CDerivativeMode::DEM_ReverseModeCombined, // return value, dret_used, top_level which was 1
                 1 as u32, // vector mode width
                 ptr::null_mut(),
