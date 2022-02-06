@@ -168,9 +168,9 @@ impl AutoDiff {
                 args_activity.len() as u64, // constant arguments
                 self.type_analysis,         // type analysis struct
                 ret_primary_ret as u8,
-                0,                                        // 0
+                0,                                        //0
                 CDerivativeMode::DEM_ReverseModeCombined, // return value, dret_used, top_level which was 1
-                1 as u32, // vector mode width
+                1,                                        // vector mode width
                 ptr::null_mut(),
                 dummy_type, // additional_arg, type info (return + args)
                 args_uncacheable.as_mut_ptr(),
