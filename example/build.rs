@@ -30,5 +30,5 @@ fn main() {
         //ReturnActivity::Gradient, // returns {f64}
     );
 
-    oxide_enzyme::build(vec![d_test]);
+    oxide_enzyme::build(vec![d_test, d_test_ref]);
 }

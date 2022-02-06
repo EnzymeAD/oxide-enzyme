@@ -20,7 +20,7 @@ fn test(x: f64) -> f64 {
     j(x) * j(x) + 2.0 * x
 }
 
-//#[differentiate(d_test_ref, Reverse, All(Duplicated), None, false)]
+#[differentiate(d_test_ref, Reverse, All(Duplicated), None, false)]
 fn test_ref(x: &mut f64) {
     *x = j(*x) + 2.0 * *x;
     // d_x = x + 2
@@ -49,13 +49,13 @@ static mut D_X2: f64 = 0.0;
 fn main() {
     unsafe {
         dbg!(d_test(1.0));
-        // println!("{} {}", X1, D_X1);
-        // dbg!(d_test_ref(&mut X1, &mut D_X1));
-        // println!("{} {}", X1, D_X1);
+        println!("{} {}", X1, D_X1);
+        dbg!(d_test_ref(&mut X1, &mut D_X1));
+        println!("{} {}", X1, D_X1);
 
-        // println!("{} {}", X2, D_X2);
-        // dbg!(d_test_ref(&mut X2, &mut D_X2));
-        // println!("{} {}", X2, D_X2);
+        println!("{} {}", X2, D_X2);
+        dbg!(d_test_ref(&mut X2, &mut D_X2));
+        println!("{} {}", X2, D_X2);
         //dbg!(&f_wrap(1.0, 1.0));
         //dbg!(&g_wrap(1.0));
         //dbg!(&enzyme3(1.0, 1.0));
