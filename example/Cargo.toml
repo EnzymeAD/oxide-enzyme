@@ -9,6 +9,7 @@ edition = "2021"
 simple_dep = { git = "https://github.com/ZuseZ4/simple_dep/" }
 ndarray = "0.15"
 nalgebra = "0.29"
+oxide-enzyme = { path = ".." }
 
 [build-dependencies]
 oxide-enzyme = { path = ".." }

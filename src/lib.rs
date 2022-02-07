@@ -12,12 +12,14 @@ use llvm_sys::LLVMLinkage;
 use glob::glob;
 use std::process::Command;
 
+pub use autodiff::differentiate_ext as differentiate;
+
 mod enzyme;
 mod verify;
 mod wrappers;
-use enzyme::{create_empty_type_analysis, AutoDiff, LLVMOpaqueValue, ParamInfos};
 pub use enzyme::{enzyme_print_activity, enzyme_print_functions, enzyme_print_type};
-pub use enzyme::{FncInfo, CDIFFE_RETTYPE, CDIFFE_TYPE};
+use enzyme::{AutoDiff, LLVMOpaqueValue, ParamInfos};
+pub use enzyme::{FncInfo, ReturnActivity, CDIFFE_TYPE};
 
 fn llvm_bin_dir() -> PathBuf {
     let rustc_ver = env!("RUSTC_VER");
@@ -220,11 +222,10 @@ fn generate_grad_function(
     grad_names: Vec<String>,
     mut param_infos: Vec<ParamInfos>,
 ) -> Vec<LLVMValueRef> {
-    let type_analysis = create_empty_type_analysis();
-    let auto_diff = AutoDiff::new(type_analysis);
+    let opt_grads = !cfg!(debug_assertions); // There should be a better solution
+    let auto_diff = AutoDiff::new(opt_grads);
 
     let mut grad_fncs = vec![];
-    let opt_grads = !cfg!(debug_assertions); // There should be a better solution
     for (&mut fnc, (param_info, grad_name)) in functions
         .iter_mut()
         .zip(param_infos.iter_mut().zip(grad_names.iter()))
@@ -234,7 +235,6 @@ fn generate_grad_function(
             fnc as *mut LLVMOpaqueValue,
             &mut param_info.input_activity,
             param_info.ret_info,
-            opt_grads,
         ) as LLVMValueRef;
         dbg!("Generated gradient function");
         grad_fncs.push(grad_func);
@@ -480,7 +480,7 @@ fn build_archive(primary_fnc_infos: Vec<FncInfo>) {
     // We are loading the existing primary functions, to pass them to enzyme.
     let functions = load_primary_functions(module, primary_names.clone());
 
-    if let Err(e) = verify::verify_user_inputs(primary_fnc_infos, functions.clone()) {
+    if let Err(e) = verify::verify_user_inputs(primary_fnc_infos, functions.clone(), context) {
         panic!("The primary function which you wrote does not work with the FncInfo which you gave! {}", e);
     }
 
