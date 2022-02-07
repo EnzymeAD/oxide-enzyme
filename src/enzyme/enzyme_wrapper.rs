@@ -1,7 +1,7 @@
 // TODO: Verify wether to import the LLVM* from enzyme_sys, or from llvm-sys
 use enzyme_sys::{
     CDerivativeMode, CFnTypeInfo, EnzymeCreatePrimalAndGradient, EnzymeLogicRef,
-    EnzymeTypeAnalysisRef, FreeEnzymeLogic, IntList,
+    EnzymeTypeAnalysisRef, FreeEnzymeLogic, FreeTypeAnalysis, IntList,
 };
 use enzyme_sys::{CreateEnzymeLogic, CreateTypeAnalysis, EnzymeSetCLBool, LLVMValueRef};
 pub use enzyme_sys::{LLVMOpaqueContext, LLVMOpaqueValue, CDIFFE_TYPE};
@@ -9,7 +9,6 @@ pub use enzyme_sys::{LLVMOpaqueContext, LLVMOpaqueValue, CDIFFE_TYPE};
 use super::enzyme_sys;
 use super::tree::TypeTree;
 
-use std::ffi::CString;
 use std::os::raw::c_void;
 use std::ptr;
 
@@ -84,12 +83,6 @@ impl FncInfo {
     }
 }
 
-pub fn create_empty_type_analysis() -> EnzymeTypeAnalysisRef {
-    let platform: String = std::env::var("TARGET").unwrap();
-    let tripple = CString::new(platform).unwrap().into_raw();
-    unsafe { CreateTypeAnalysis(tripple, std::ptr::null_mut(), std::ptr::null_mut(), 0) }
-}
-
 // The Enzyme API is too unspecific for the return type, so we introduced
 // the stricter CDIFFE_RETTYPE to not allow types which are illegal for
 // the ret activity. Enzyme doesn't know this type, so we match it back.
@@ -111,8 +104,10 @@ pub struct AutoDiff {
 }
 
 impl AutoDiff {
-    pub fn new(type_analysis: EnzymeTypeAnalysisRef) -> AutoDiff {
-        let logic_ref = unsafe { CreateEnzymeLogic() };
+    pub fn new(opt: bool) -> Self {
+        let logic_ref = unsafe { CreateEnzymeLogic(opt as u8) };
+        let type_analysis =
+            unsafe { CreateTypeAnalysis(logic_ref, ptr::null_mut(), ptr::null_mut(), 0) };
         AutoDiff {
             logic_ref,
             type_analysis,
@@ -124,7 +119,6 @@ impl AutoDiff {
         fnc_todiff: LLVMValueRef,
         args_activity: &mut [CDIFFE_TYPE],
         ret_info: ReturnActivity,
-        opt: bool,
     ) -> LLVMValueRef {
         let (ret_activity, ret_primary_ret) = match ret_info {
             ReturnActivity::Active => (CDIFFE_TYPE::DFT_OUT_DIFF, true as u8),
@@ -177,7 +171,6 @@ impl AutoDiff {
                 args_uncacheable.len() as u64, // uncacheable arguments
                 ptr::null_mut(),               // write augmented function to this
                 0,
-                opt as u8, // atomic_add, post_opt
             )
         };
         dbg!("after-ad");
@@ -187,6 +180,9 @@ impl AutoDiff {
 
 impl Drop for AutoDiff {
     fn drop(&mut self) {
-        unsafe { FreeEnzymeLogic(self.logic_ref) }
+        unsafe {
+            FreeTypeAnalysis(self.type_analysis);
+            FreeEnzymeLogic(self.logic_ref);
+        }
     }
 }
