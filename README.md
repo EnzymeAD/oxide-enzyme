@@ -19,12 +19,12 @@ First you have to get an adequate rustc/llvm/enzyme build here: [enzyme\_build](
 Afterwards for your convenience you should export this path for LLVM_SYS
 
 ```bash
-$ export LLVM_SYS_130_PREFIX=$HOME/.cache/enzyme/rustc-1.57.0-src/build/x86_64-unknown-linux-gnu/llvm  
+$ export LLVM_SYS_130_PREFIX=$HOME/.cache/enzyme/rustc-1.59.0-src/build/x86_64-unknown-linux-gnu/llvm  
 ```
 
 and tell Enzyme about your library locations:  
 ```bash
-$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.cache/enzyme/Enzyme-0.0.24/enzyme/build/Enzyme:$HOME/.cache/enzyme/rustc-1.57.0-src/build/x86_64-unknown-linux-gnu/llvm/build/lib/  
+$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.cache/enzyme/Enzyme-0.0.29/enzyme/build/Enzyme:$HOME/.cache/enzyme/rustc-1.59.0-src/build/x86_64-unknown-linux-gnu/llvm/build/lib/  
 ```
   
 As an alternative you can also run   
