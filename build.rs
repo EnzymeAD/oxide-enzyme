@@ -1,7 +1,7 @@
 use std::path::Path;
 
-const ENZYME_VER: &str = "HEAD";
-const RUSTC_VER: &str = "1.58.1";
+const ENZYME_VER: &str = "0.0.29";
+const RUSTC_VER: &str = "1.59.0";
 const LLVM_VER: &str = "13";
 
 fn choose_library() {
