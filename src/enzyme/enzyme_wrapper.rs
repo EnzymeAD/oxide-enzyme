@@ -4,7 +4,7 @@ use enzyme_sys::{
     EnzymeTypeAnalysisRef, FreeEnzymeLogic, FreeTypeAnalysis, IntList,
 };
 use enzyme_sys::{CreateEnzymeLogic, CreateTypeAnalysis, EnzymeSetCLBool, LLVMValueRef};
-pub use enzyme_sys::{LLVMOpaqueContext, LLVMOpaqueValue, CDIFFE_TYPE};
+pub use enzyme_sys::{LLVMOpaqueValue, CDIFFE_TYPE};
 
 use super::enzyme_sys;
 use super::tree::TypeTree;
@@ -97,6 +97,12 @@ pub enum ReturnActivity {
     Ignore,
     None,
 }
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum FwdReturnActivity {
+    Active,
+    Gradient,
+}
 
 pub struct AutoDiff {
     logic_ref: EnzymeLogicRef,
@@ -112,6 +118,14 @@ impl AutoDiff {
             logic_ref,
             type_analysis,
         }
+    }
+
+    pub fn create_fwd_diff(
+        &self,
+        fnc_todiff: LLVMValueRef,
+        args_activity: &mut [CDIFFE_TYPE],
+        ret_info: FwdReturnActivity,
+    ) {
     }
 
     pub fn create_primal_and_gradient(
@@ -165,6 +179,7 @@ impl AutoDiff {
                 0,                                        //0
                 CDerivativeMode::DEM_ReverseModeCombined, // return value, dret_used, top_level which was 1
                 1,                                        // vector mode width
+                1,                                        // free memory
                 ptr::null_mut(),
                 dummy_type, // additional_arg, type info (return + args)
                 args_uncacheable.as_mut_ptr(),

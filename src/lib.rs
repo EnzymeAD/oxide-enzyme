@@ -14,8 +14,11 @@ use std::process::Command;
 
 pub use autodiff::differentiate_ext as differentiate;
 
+#[doc(hidden)]
 mod enzyme;
+#[doc(hidden)]
 mod verify;
+#[doc(hidden)]
 mod wrappers;
 pub use enzyme::{enzyme_print_activity, enzyme_print_functions, enzyme_print_type};
 use enzyme::{AutoDiff, LLVMOpaqueValue, ParamInfos};
