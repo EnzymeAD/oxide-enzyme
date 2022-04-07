@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://rust-ml.github.io/oxide-enzyme/sitemap.xml

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+      <!-- Enable responsiveness on mobile devices-->
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+      <title></title>
+
+      
+      
+
+      <!-- CSS -->
+      
+      <link rel="stylesheet" href="https://rust-ml.github.io/oxide-enzyme/book.css">
+      
+
+      
+      
+    </head>
+
+    <body>
+        <div class="menu">
+            
+            
+            <nav role="navigation">
+                <ul>
+                    
+                        
+                        
+                            
+                            <li >
+                                
+                                <a href="https:&#x2F;&#x2F;rust-ml.github.io&#x2F;oxide-enzyme&#x2F;chapter1&#x2F;">
+                                    <strong>1.</strong>
+                                    Oxide-Enzyme
+                                </a>
+                                
+                                    <ul>
+                                        
+                                            <li class="active">
+                                                <a href="https:&#x2F;&#x2F;rust-ml.github.io&#x2F;oxide-enzyme&#x2F;chapter1&#x2F;page1&#x2F;">
+                                                    <strong>1.1.</strong>
+                                                    Oxide-Enzyme
+                                                </a>
+                                            </li>
+                                        
+                                    </ul>
+                                
+                            </li>
+                        
+                            
+                            <li >
+                                
+                                <a href="https:&#x2F;&#x2F;rust-ml.github.io&#x2F;oxide-enzyme&#x2F;chapter2&#x2F;">
+                                    <strong>2.</strong>
+                                    Getting Started
+                                </a>
+                                
+                                    <ul>
+                                        
+                                            <li >
+                                                <a href="https:&#x2F;&#x2F;rust-ml.github.io&#x2F;oxide-enzyme&#x2F;chapter2&#x2F;page1&#x2F;">
+                                                    <strong>2.1.</strong>
+                                                    Using enzyme_build 
+                                                </a>
+                                            </li>
+                                        
+                                            <li >
+                                                <a href="https:&#x2F;&#x2F;rust-ml.github.io&#x2F;oxide-enzyme&#x2F;chapter2&#x2F;page2&#x2F;">
+                                                    <strong>2.2.</strong>
+                                                    Building from scratch
+                                                </a>
+                                            </li>
+                                        
+                                    </ul>
+                                
+                            </li>
+                        
+                    
+                </ul>
+            </nav>
+            
+            
+        </div>
+
+        <div class="page">
+            <div class="page__header">
+                <div class="menu-icon">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                
+                <span class="search-icon">🔎</span>
+                
+            </div>
+
+            <div class="page__content">
+                
+                <div class="search-container">
+                    <input id="search" type="search" placeholder="Search..">
+                    <div class="search-results">
+                        <div class="search-results__header"></div>
+                        <ul class="search-results__items"></ul>
+                    </div>
+                </div>
+                
+                <div class="book-content">
+                    
+    <h1>Oxide-Enzyme</h1>
+    <p>This book is intended to 
+Enzyme is a new tool for automatic differentiation with an awesome performance.
+For those of you who can't wait to get started, here is your link: TODO</p>
+<h1 id="usage">Usage<a class="zola-anchor" href="#usage" aria-label="Anchor link for: usage">🔗</a></h1>
+<h1 id="warnings">Warnings<a class="zola-anchor" href="#warnings" aria-label="Anchor link for: warnings">🔗</a></h1>
+<p>Enzyme is rapidly evolving and so are we. Expect breaking changes and other calling conventions if the current ones turn out to be uneccessary complex 
+(e.g. I intend to remove the need for #[Enzyme]).</p>
+<h1 id="next-goals">Next goals<a class="zola-anchor" href="#next-goals" aria-label="Anchor link for: next-goals">🔗</a></h1>
+<ul>
+<li>Rayon support. Enzyme already does support various types of parallelism so this is a comparably small step. </li>
+<li>Speed up installation by adding support for downloading pre-compiled rustc/llvm/enzyme.</li>
+<li>Use (llvm based) GPGPU Kernels written in Rust with Enzyme.</li>
+<li>Download the release tarballs instead of cloning the rust repository using git once 1.56 hits stable. Reduces dependencies further and is a little bit faster.</li>
+<li>Test all the extra combinations which user might try (enzyme + cross-compilation / no-std / x)</li>
+<li>Get Rust into HPC :)</li>
+</ul>
+<p>Pages and sections are actually very similar.</p>
+<h2 id="page-variables">Page variables<a class="zola-anchor" href="#page-variables" aria-label="Anchor link for: page-variables">🔗</a></h2>
+<p>Gutenberg will try to load the <code>templates/page.html</code> template, the <code>page.html</code> template of the theme if one is used
+or will render the built-in template: a blank page.</p>
+<p>Whichever template you decide to render, you will get a <code>page</code> variable in your template
+with the following fields:</p>
+<pre style="background-color:#2b303b;">
+<code class="language-ts" data-lang="ts"><span style="color:#c0c5ce;">content: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+title: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">?;
+</span><span style="color:#bf616a;">description</span><span style="color:#c0c5ce;">: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">?;
+</span><span style="color:#bf616a;">date</span><span style="color:#c0c5ce;">: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">?;
+</span><span style="color:#bf616a;">slug</span><span style="color:#c0c5ce;">: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+path: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+permalink: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+summary: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">?;
+</span><span style="color:#bf616a;">tags</span><span style="color:#c0c5ce;">: </span><span style="color:#ebcb8b;">Array</span><span style="color:#c0c5ce;">&lt;</span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">&gt;;
+category: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">?;
+</span><span style="color:#bf616a;">extra</span><span style="color:#c0c5ce;">: </span><span style="color:#bf616a;">HashMap</span><span style="color:#c0c5ce;">&lt;</span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">, </span><span style="color:#bf616a;">Any</span><span style="color:#c0c5ce;">&gt;;
+</span><span style="color:#65737e;">// Naive word count, will not work for languages without whitespace
+</span><span style="color:#c0c5ce;">word_count: </span><span style="color:#ebcb8b;">Number</span><span style="color:#c0c5ce;">;
+</span><span style="color:#65737e;">// Based on https://help.medium.com/hc/en-us/articles/214991667-Read-time
+</span><span style="color:#c0c5ce;">reading_time: </span><span style="color:#ebcb8b;">Number</span><span style="color:#c0c5ce;">;
+</span><span style="color:#65737e;">// `previous` and `next` are only filled if the content can be sorted
+</span><span style="color:#c0c5ce;">previous: </span><span style="color:#bf616a;">Page</span><span style="color:#c0c5ce;">?;
+</span><span style="color:#bf616a;">next</span><span style="color:#c0c5ce;">: </span><span style="color:#bf616a;">Page</span><span style="color:#c0c5ce;">?;
+</span><span style="color:#65737e;">// See the Table of contents section below for more details
+</span><span style="color:#bf616a;">toc</span><span style="color:#c0c5ce;">: </span><span style="color:#ebcb8b;">Array</span><span style="color:#c0c5ce;">&lt;</span><span style="color:#bf616a;">Header</span><span style="color:#c0c5ce;">&gt;;
+</span></code></pre><h2 id="section-variables">Section variables<a class="zola-anchor" href="#section-variables" aria-label="Anchor link for: section-variables">🔗</a></h2>
+<p>By default, Gutenberg will try to load <code>templates/section.html</code>. If there isn't
+one, it will render the built-in template: a blank page.</p>
+<p>Whichever template you decide to render, you will get a <code>section</code> variable in your template
+with the following fields:</p>
+<pre style="background-color:#2b303b;">
+<code class="language-ts" data-lang="ts"><span style="color:#c0c5ce;">content: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+title: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">?;
+</span><span style="color:#bf616a;">description</span><span style="color:#c0c5ce;">: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">?;
+</span><span style="color:#bf616a;">date</span><span style="color:#c0c5ce;">: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">?;
+</span><span style="color:#bf616a;">slug</span><span style="color:#c0c5ce;">: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+path: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+permalink: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+extra: </span><span style="color:#bf616a;">HashMap</span><span style="color:#c0c5ce;">&lt;</span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">, </span><span style="color:#bf616a;">Any</span><span style="color:#c0c5ce;">&gt;;
+</span><span style="color:#65737e;">// Pages directly in this section, sorted if asked
+</span><span style="color:#c0c5ce;">pages: </span><span style="color:#ebcb8b;">Array</span><span style="color:#c0c5ce;">&lt;</span><span style="color:#bf616a;">Pages</span><span style="color:#c0c5ce;">&gt;;
+</span><span style="color:#65737e;">// Direct subsections to this section, sorted by subsections weight
+</span><span style="color:#c0c5ce;">subsections: </span><span style="color:#ebcb8b;">Array</span><span style="color:#c0c5ce;">&lt;</span><span style="color:#bf616a;">Section</span><span style="color:#c0c5ce;">&gt;;
+</span><span style="color:#65737e;">// Naive word count, will not work for languages without whitespace
+</span><span style="color:#c0c5ce;">word_count: </span><span style="color:#ebcb8b;">Number</span><span style="color:#c0c5ce;">;
+</span><span style="color:#65737e;">// Based on https://help.medium.com/hc/en-us/articles/214991667-Read-time
+</span><span style="color:#c0c5ce;">reading_time: </span><span style="color:#ebcb8b;">Number</span><span style="color:#c0c5ce;">;
+</span><span style="color:#65737e;">// See the Table of contents section below for more details
+</span><span style="color:#c0c5ce;">toc: </span><span style="color:#ebcb8b;">Array</span><span style="color:#c0c5ce;">&lt;</span><span style="color:#bf616a;">Header</span><span style="color:#c0c5ce;">&gt;;
+</span></code></pre><h2 id="table-of-contents">Table of contents<a class="zola-anchor" href="#table-of-contents" aria-label="Anchor link for: table-of-contents">🔗</a></h2>
+<p>Both page and section have a <code>toc</code> field which corresponds to an array of <code>Header</code>.
+A <code>Header</code> has the following fields:</p>
+<pre style="background-color:#2b303b;">
+<code class="language-ts" data-lang="ts"><span style="color:#65737e;">// The hX level
+</span><span style="color:#c0c5ce;">level: </span><span style="color:#d08770;">1 </span><span style="color:#c0c5ce;">| </span><span style="color:#d08770;">2 </span><span style="color:#c0c5ce;">| </span><span style="color:#d08770;">3 </span><span style="color:#c0c5ce;">| </span><span style="color:#d08770;">4 </span><span style="color:#c0c5ce;">| </span><span style="color:#d08770;">5 </span><span style="color:#c0c5ce;">| </span><span style="color:#d08770;">6</span><span style="color:#c0c5ce;">;
+</span><span style="color:#65737e;">// The generated slug id
+</span><span style="color:#c0c5ce;">id: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+</span><span style="color:#65737e;">// The text of the header
+</span><span style="color:#c0c5ce;">title: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+</span><span style="color:#65737e;">// A link pointing directly to the header, using the inserted anchor
+</span><span style="color:#c0c5ce;">permalink: </span><span style="color:#ebcb8b;">String</span><span style="color:#c0c5ce;">;
+</span><span style="color:#65737e;">// All lower level headers below this header
+</span><span style="color:#c0c5ce;">children: </span><span style="color:#ebcb8b;">Array</span><span style="color:#c0c5ce;">&lt;</span><span style="color:#bf616a;">Header</span><span style="color:#c0c5ce;">&gt;;
+</span></code></pre>
+<p><img src="https://github.com/ZuseZ4/oxide-enzyme/blob/master/README.md" alt="usage" /></p>
+
+
+                </div>
+            </div>
+
+            <div class="prev-link">
+                
+    
+        
+        
+        <a class="previous" href="https:&#x2F;&#x2F;rust-ml.github.io&#x2F;oxide-enzyme&#x2F;chapter1&#x2F;"><</a>
+    
+
+            </div>
+
+            <div class="next-link">
+                
+    
+        
+        
+        
+        
+            
+            
+            
+                
+                    
+                
+            
+        
+            
+            
+                <a class="next" href="https:&#x2F;&#x2F;rust-ml.github.io&#x2F;oxide-enzyme&#x2F;chapter2&#x2F;">></a>
+                
+                
+            
+            
+                
+            
+                
+            
+        
+    
+
+            </div>
+        </div>
+
+        
+            
+            <script type="text/javascript" src="https://rust-ml.github.io/oxide-enzyme/elasticlunr.min.js"></script>
+            <script type="text/javascript" src="https://rust-ml.github.io/oxide-enzyme/search_index.en.js"></script>
+            
+            <script type="text/javascript" src="https://rust-ml.github.io/oxide-enzyme/book.js"></script>
+        
+    </body>
+
+</html>
