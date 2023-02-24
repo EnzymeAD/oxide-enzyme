@@ -1,4 +1,7 @@
-# <img src="https://enzyme.mit.edu/logo.svg" width="75" align=left> The Enzyme High-Performance Automatic Differentiator of LLVM
+# <img src="https://enzyme.mit.edu/logo.svg" width="75" align=left> ARCHIVED 
+
+## Please look at https://github.com/EnzymeAD/rust
+
 
 This is a package containing a Rust frontend for [Enzyme](https://github.com/wsmoses/enzyme). This is very much a work in progress and bug reports/discussion is greatly appreciated!
 
